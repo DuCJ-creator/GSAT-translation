@@ -199,47 +199,22 @@ export default function App() {
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 selection:bg-teal-500 selection:text-white flex flex-col font-sans">
       
       {/* Top Professional Navigation Header Bar */}
-      <header className="bg-slate-950 text-white border-b border-slate-900 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3.5 flex flex-col md:flex-row items-center justify-between gap-4">
+      <header className="bg-slate-950 text-white border-b border-teal-500/10 sticky top-0 z-50 shadow-md">
+        <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col items-center justify-center text-center">
           
-          {/* Logo Brand Brand */}
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-teal-500 flex items-center justify-center shadow-md shadow-teal-500/10">
-              <GraduationCap className="w-5.5 h-5.5 text-slate-950" />
+          {/* Logo brand and centered layout */}
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-teal-500 flex items-center justify-center shadow-lg shadow-teal-500/20">
+              <GraduationCap className="w-7 h-7 text-slate-950" />
             </div>
-            <div>
-              <h1 className="text-sm font-bold tracking-tight text-white flex items-center gap-1.5 leading-none">
+            <div className="space-y-1">
+              <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-white leading-tight">
                 {getTranslation("navTitle", lang)}
               </h1>
-              <span className="text-[10px] text-slate-400 font-medium tracking-wide block mt-1">
+              <p className="text-xs md:text-sm text-teal-400 font-medium tracking-wide">
                 {getTranslation("navSubtitle", lang)}
-              </span>
+              </p>
             </div>
-          </div>
-
-          {/* Quick Header Indicators & Lang Selection */}
-          <div className="flex flex-wrap items-center gap-3 text-xs justify-end">
-            {/* Language Selector */}
-            <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-md text-xs text-slate-300">
-              <Globe className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-              <select
-                value={lang}
-                onChange={(e) => setLang(e.target.value as LangType)}
-                className="bg-transparent text-slate-100 text-[11px] font-bold outline-hidden border-none cursor-pointer focus:ring-0"
-              >
-                <option value="bilingual" className="bg-slate-900 text-slate-100">🌐 Bilingual / 雙語</option>
-                <option value="zh" className="bg-slate-900 text-slate-100">🇹🇼 繁體中文</option>
-                <option value="en" className="bg-slate-900 text-slate-100">🇺🇸 English</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-1 bg-slate-900/50 border border-slate-800 px-3 py-1 rounded-md text-[11px] text-teal-400 font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
-              <span>{getTranslation("navEngine", lang)}</span>
-            </div>
-            <span className="text-[10.5px] text-slate-400 font-mono hidden sm:inline">
-              UTC: 2026-06-01
-            </span>
           </div>
 
         </div>
@@ -576,7 +551,7 @@ export default function App() {
                                     <td className="py-2 px-3 font-mono font-bold text-teal-850">
                                       {isGraded ? `${student.totalScore?.toFixed(1)}` : "-"}
                                     </td>
-                                    <td className="py-2 px-3 text-slate-500 max-w-[200px] truncate leading-normal" title={student.majorIssues || ""}>
+                                    <td className="py-2 px-3 text-slate-600 max-w-xs whitespace-normal break-words leading-relaxed text-[11px]" title={student.majorIssues || ""}>
                                       {isGraded ? student.majorIssues : "-"}
                                     </td>
                                     <td className="py-2 px-3 text-right">
