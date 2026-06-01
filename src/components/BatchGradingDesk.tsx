@@ -44,9 +44,7 @@ export default function BatchGradingDesk({
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; dataUrl: string }>>([]);
   
   // States for tab-text (multi-student textarea)
-  const [combinedText, setCombinedText] = useState<string>(
-    `#01\nMany students feel anxious when picking their major.\nHowever, self-exploration and expert advice can help them make better decisions.\n\n#02\nLots of students feel afraid about which department to choose.\nBut, with self-discovery and talking to experts, they can choose appropriate deciding.\n\n#03\nNumerous high school students experience anxiety during major planning.\nYet, by exploring themselves and consulting counselors, they make optimal decisions.`
-  );
+  const [combinedText, setCombinedText] = useState<string>("");
 
   // State for the batch queue itself
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
