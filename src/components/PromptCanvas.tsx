@@ -121,7 +121,7 @@ export default function PromptCanvas({ onAnalysisGenerated, currentAnalysis, lan
           {isAnalyzing ? (
             <>
               <RefreshCw className="w-4 h-4 animate-spin text-slate-400" />
-              {lang === "zh" ? "正在調用學術 Gemini AI 進行多維度分析中..." : lang === "en" ? "Calling specialized Gemini AI for multi-dimensional analysis..." : "正在調用學術 Gemini AI 進行多維度分析中 (Analyzing with Gemini AI...)"}
+              {lang === "zh" ? "正在調用學術 AI 進行多維度分析中..." : lang === "en" ? "Calling specialized AI for multi-dimensional analysis..." : "正在調用學術 AI 進行多維度分析中 (Analyzing with AI...)"}
             </>
           ) : (
             <>
