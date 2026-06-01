@@ -22,7 +22,7 @@ export default function GradingDesk({
   onGradingComplete,
   lang = "bilingual",
 }: GradingDeskProps) {
-  const [inputMode, setInputMode] = useState<"demo" | "upload" | "text">("demo");
+  const [inputMode, setInputMode] = useState<"upload" | "text">("text");
   const [typedText, setTypedText] = useState<string>("");
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [imageName, setImageName] = useState<string>("");
@@ -40,23 +40,12 @@ export default function GradingDesk({
       setAttachedImage(student.studentInputImage || null);
       setImageName(student.fileName || "");
     } else {
-      // not graded or new seat
+      // not graded or new seat: start completely empty
       setLocalError(null);
-      // Auto-load pre-filled demo data if available for this seat
-      const foundDemo = DEMO_STUDENT_SUBMISSIONS.find(d => d.seatNumber === activeSeat);
-      if (foundDemo) {
-        setTypedText(foundDemo.textInput);
-        const svgUri = generateHandwritingSvg(activeSeat, foundDemo.textInput);
-        setAttachedImage(svgUri);
-        setImageName(`demo_seat_${activeSeat}_scan.svg`);
-        setInputMode("demo");
-      } else {
-        // generic fill
-        setTypedText("");
-        setAttachedImage(null);
-        setImageName("");
-        setInputMode("text");
-      }
+      setTypedText("");
+      setAttachedImage(null);
+      setImageName("");
+      setInputMode("text");
     }
   }, [activeSeat, student]);
 
@@ -213,92 +202,36 @@ export default function GradingDesk({
               </span>
               <span>號學生作業登錄</span>
             </h4>
-            <div className="flex gap-1">
+            <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setInputMode("demo")}
-                className={`py-1 px-2 rounded text-[10px] font-semibold transition-all ${
-                  inputMode === "demo"
-                    ? "bg-slate-900 text-white"
+                onClick={() => setInputMode("text")}
+                className={`py-1 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  inputMode === "text"
+                    ? "bg-slate-900 text-white shadow-xs"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
-                仿手寫作業 (預載)
+                打字登錄 (Type/Paste Response)
               </button>
               <button
                 type="button"
                 onClick={() => setInputMode("upload")}
-                className={`py-1 px-2 rounded text-[10px] font-semibold transition-all ${
+                className={`py-1 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   inputMode === "upload"
-                    ? "bg-slate-900 text-white"
+                    ? "bg-slate-900 text-white shadow-xs"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
-                拍照/上傳作業
-              </button>
-              <button
-                type="button"
-                onClick={() => setInputMode("text")}
-                className={`py-1 px-2 rounded text-[10px] font-semibold transition-all ${
-                  inputMode === "text"
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                打字登錄
+                拍照/上傳作業 (Upload Scan)
               </button>
             </div>
-          </div>
-
-          {/* Mode Description Banner */}
-          <div className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex items-start gap-1.5">
-            <HelpCircle className="w-3.5 h-3.5 shrink-0 text-slate-400 mt-0.5" />
-            <p>
-              {inputMode === "demo" && "『仿手寫作業』：系統以生動的手寫筆跡格式模擬學生的手抄答卷，最適合用於體驗 OCR 以及紅筆標註示範。"}
-              {inputMode === "upload" && "『拍照/上傳作業』：可以點選上傳或拖曳真實的學生手寫拍照圖檔 (PNG/JPG)。系統將自動進行 OCR 智慧辨識。"}
-              {inputMode === "text" && "『打字登錄』：手動為該學生謄錄句子或拷貝解答，跳過 OCR 直接進行 AI 評核。"}
-            </p>
           </div>
 
           {/* Core Input Display Section */}
-          {inputMode === "demo" && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Simulated Notebook scan</span>
-                <button
-                  onClick={handleLoadDemoText}
-                  className="text-[10px] text-cyan-600 hover:text-cyan-800 font-bold flex items-center gap-0.5 transition-colors"
-                >
-                  <RefreshCw className="w-3 h-3" /> 重置/帶入此座號模擬卷
-                </button>
-              </div>
-
-              {attachedImage ? (
-                <div className="relative border border-slate-200 rounded-lg overflow-hidden bg-slate-100 shadow-3xs p-1">
-                  <img src={attachedImage} alt="Handwriting Sim" className="w-full object-contain rounded-md" />
-                  <div className="absolute bottom-2 right-2 flex gap-1">
-                    <button
-                      onClick={handleDeleteAttachment}
-                      className="bg-rose-500 hover:bg-rose-600 text-white p-1 rounded-md shadow-xs transition-colors"
-                      title="清除"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div onClick={handleLoadDemoText} className="border-4 border-dashed border-slate-200 rounded-xl p-8 text-center cursor-pointer hover:border-slate-300 transition-colors bg-slate-50/50">
-                  <Keyboard className="w-8 h-8 text-slate-300 mx-auto mb-1.5" />
-                  <p className="text-xs text-slate-500 font-bold">點此自動生成預載手寫卷 ✍️</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">（系統已對 1 至 5 號備妥不同的錯題模擬，歡迎直接點選測試學術回饋）</p>
-                </div>
-              )}
-            </div>
-          )}
-
           {inputMode === "upload" && (
             <div className="space-y-3">
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">JPG/PNG Scan Sheet Upload</span>
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Student Translation Capture</span>
               
               {attachedImage ? (
                 <div className="relative border border-slate-200 rounded-lg overflow-hidden bg-slate-100 shadow-3xs p-1">
@@ -325,13 +258,13 @@ export default function GradingDesk({
                   onClick={() => fileInputRef.current?.click()}
                   className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
                     dragActive
-                      ? "border-cyan-500 bg-cyan-50/50 text-cyan-700"
+                      ? "border-emerald-500 bg-emerald-50/20 text-emerald-700"
                       : "border-slate-300 hover:border-slate-400 bg-slate-50/50 text-slate-500"
                   }`}
                 >
-                  <Upload className="w-8 h-8 mx-auto mb-2 text-slate-300 animate-bounce" />
-                  <p className="text-xs font-bold text-slate-700">拖曳作業圖像、或點此瀏覽本機檔案</p>
-                  <p className="text-[10px] text-slate-400 mt-1">支援 PNG, JPG, JPEG 格式手寫拍照、多頁作業</p>
+                  <Upload className="w-8 h-8 mx-auto mb-2 text-slate-300 pointer-events-none" />
+                  <p className="text-xs font-semibold text-slate-600">拖曳作業圖像、或點此瀏覽本機檔案</p>
+                  <p className="text-[10px] text-slate-400 mt-1">支援 PNG, JPG, JPEG 格式手寫拍照作業</p>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -351,23 +284,16 @@ export default function GradingDesk({
                 value={typedText}
                 onChange={(e) => setTypedText(e.target.value)}
                 rows={5}
-                className="w-full text-xs p-3 rounded-lg border border-slate-200 focus:outline-hidden focus:ring-1 focus:ring-sky-500 bg-slate-50/50 font-mono tracking-tight"
-                placeholder="在此直接輸入或貼上學生書寫的兩句英文翻譯..."
+                className="w-full text-xs p-3 rounded-lg border border-slate-200 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-slate-50/50 font-mono tracking-tight"
+                placeholder="貼上或輸入學生作答的英文翻譯句子... (第一句與第二句可以分行輸入)"
               />
-              <div className="flex justify-end gap-1.5">
+              <div className="flex justify-end">
                 <button
                   type="button"
                   onClick={() => setTypedText("")}
-                  className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold rounded"
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold rounded cursor-pointer"
                 >
-                  清除文字
-                </button>
-                <button
-                  type="button"
-                  onClick={handleLoadDemoText}
-                  className="px-2 py-1 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 text-[10px] font-bold rounded"
-                >
-                  載入模擬錯題範例
+                  清除輸入 (Clear)
                 </button>
               </div>
             </div>
