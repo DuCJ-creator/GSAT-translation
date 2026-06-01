@@ -26,9 +26,9 @@ export const TRANSLATIONS: TranslationDictionary = {
 
   // Navigation Header
   "navTitle": {
-    zh: "學測翻譯題班級批改器",
-    en: "Class-based GSAT Translation AI Grader",
-    bi: "Class-based GSAT Translation AI Grader 學測翻譯題班級批改器"
+    zh: "ClassTranslate AI > 學測翻譯題班級批改器",
+    en: "ClassTranslate AI > 學測翻譯題班級批改器",
+    bi: "ClassTranslate AI > 學測翻譯題班級批改器"
   },
   "navSubtitle": {
     zh: "Designed by Shirley Du",
@@ -56,7 +56,7 @@ export const TRANSLATIONS: TranslationDictionary = {
 
   // Steps
   "step1": { zh: "設定翻譯考題與 AI 滿分常模", en: "Configure Translation Prompts & AI Target Benchmarks" },
-  "step1Sub": { zh: "定義大考中心題幹，Gemini AI 將立刻解析句型、學術片語與佳句常模", en: "Input prompts for Gemini AI to parse structures, core vocabulary, and standard answer ranges" },
+  "step1Sub": { zh: "定義大考中心題幹，AI 將立刻解析句型、學術片語與佳句常模", en: "Input prompts for AI to parse structures, core vocabulary, and standard answer ranges" },
   "step2": { zh: "登錄全班座次出席表", en: "Seat & Attendance Logistics Organizer" },
   "step2Sub": { zh: "登錄與排除缺席學生、點選座號檢視評分報表", en: "Log and exclude offline students; click seat numbers to evaluate or review feedback details" },
   "step3": { zh: "全班整批批改控制中心", en: "Class Batch Grading Workspace" },
@@ -104,7 +104,7 @@ export const TRANSLATIONS: TranslationDictionary = {
   "simMaxRuleVal": { zh: "4.0 分扣分學術常模細項", en: "Comprehensive 4.0-point rule set" },
   "runSimButton": { zh: "啟動一鍵全班手寫模擬批改", en: "Activate Classroom Handwriting Simulator" },
   "pipelineMonitor": { zh: "即時評改串接佇列", en: "Real-time Processing Pipeline Queue" },
-  "pipelineMonitorDesc": { zh: "顯示與學術 Google Gemini 服務與 OCR 轉換節點的傳輸遙測", en: "Monitors active connection telemetry, OCR extraction, and multi-threaded grading" },
+  "pipelineMonitorDesc": { zh: "顯示與學術 AI 服務與 OCR 轉換節點的傳輸遙測", en: "Monitors active connection telemetry, OCR extraction, and multi-threaded grading" },
   "progressCount": { zh: "評閱進度", en: "Grading Progress" },
   "pipelineLogs": { zh: "即時控制台管道日誌", en: "Cumulative Live Console Logs" },
   "pipelineWaiting": { zh: "等待大專批改佇列啟動...", en: "Awaiting incoming batch request schedules..." },
@@ -163,8 +163,13 @@ export function getTranslation(key: string, lang: LangType, replacements?: Recor
     text = data.en;
   } else {
     // Bilingual mode
-    // If the data has a unique custom bilingual display model, use it. Otherwise, join them.
-    text = data.bi || `${data.zh} (${data.en})`;
+    if (data.bi) {
+      text = data.bi;
+    } else if (data.zh === data.en) {
+      text = data.zh;
+    } else {
+      text = `${data.zh} (${data.en})`;
+    }
   }
 
   if (replacements) {
