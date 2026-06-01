@@ -35,13 +35,9 @@ export default function BatchGradingDesk({
   onSetStudents,
   lang = "bilingual",
 }: BatchGradingDeskProps) {
-  const [activeTab, setActiveTab] = useState<"files" | "text" | "simulator">("simulator");
+  const [activeTab, setActiveTab] = useState<"text" | "simulator">("simulator");
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [localError, setLocalError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // States for tab-files
-  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; dataUrl: string }>>([]);
 
   // States for tab-simulator interactive booklet uploading
   interface SimFile {
@@ -229,38 +225,6 @@ export default function BatchGradingDesk({
     }
   }, [processQueue, isProcessing]);
 
-  // Tab 1: File Batch Action
-  const processFiles = (files: FileList) => {
-    const fileArray = Array.from(files);
-    
-    // Read files as base64 data URLs
-    let loadedCount = 0;
-    const items: Array<{ name: string; dataUrl: string }> = [];
-
-    fileArray.forEach(file => {
-      if (!file.type.startsWith("image/")) {
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        if (e.target?.result) {
-          items.push({
-            name: file.name,
-            dataUrl: e.target.result as string
-          });
-        }
-        loadedCount++;
-        if (loadedCount === fileArray.length) {
-          // Sort items by file name alphabetically
-          items.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
-          setUploadedFiles(prev => [...prev, ...items]);
-          setLocalError(null);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -276,34 +240,8 @@ export default function BatchGradingDesk({
     e.stopPropagation();
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      processFiles(e.dataTransfer.files);
+      handleSimFilesUpload(e.dataTransfer.files);
     }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      processFiles(e.target.files);
-    }
-  };
-
-  const startFileBatchGrading = () => {
-    if (uploadedFiles.length === 0) {
-      setLocalError("請先上傳學生的手寫掃描檔案。");
-      return;
-    }
-
-    // Map sorted files to the sorted list of present students
-    const items: QueuedStudent[] = presentStudents.map((student, index) => {
-      const fileToUse = uploadedFiles[index % uploadedFiles.length]; // wrapping if not enough files
-      return {
-        seatNumber: student.seatNumber,
-        fileName: fileToUse.name,
-        image: fileToUse.dataUrl,
-        status: "idle" as const
-      };
-    });
-
-    runBatchPipeline(items);
   };
 
   // Tab 2: Combined Text Parsing Act
@@ -367,37 +305,48 @@ export default function BatchGradingDesk({
 
   // Tab 3: Automatic Class Simulator Booklet Uploading & Ordering Mechanics
   const handleSimFilesUpload = (files: FileList) => {
-    const fileArray = Array.from(files);
+    if (presentStudents.length === 0) {
+      setLocalError("目前第二步中無任何勾選出席的學生，請先新增/勾選個別學生出席！");
+      return;
+    }
+
+    const fileArray = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
     const newSimFiles: SimFile[] = [];
 
-    fileArray.forEach((file, index) => {
-      const isPdf = file.name.toLowerCase().endsWith(".pdf");
-      if (isPdf) {
-        // If they upload a compiled multi-page PDF, simulate page-by-page mapping in seat sequence
-        presentStudents.forEach((student, sIdx) => {
-          newSimFiles.push({
-            id: `${file.name}-page-${sIdx + 1}`,
-            name: `${file.name} (學籍考卷頁次 ${sIdx + 1})`,
-            seatNumber: student.seatNumber
-          });
+    // Check if it is a single PDF with several pages requested to be mapped page-by-page
+    if (fileArray.length === 1 && fileArray[0].name.toLowerCase().endsWith(".pdf")) {
+      const file = fileArray[0];
+      // Assume a multipage booklet mapping page-by-page to current present students in order
+      presentStudents.forEach((student, sIdx) => {
+        newSimFiles.push({
+          id: `${file.name}-page-${sIdx + 1}-${Math.random()}`,
+          name: `${file.name} (學籍考卷頁次 ${sIdx + 1} / Page ${sIdx + 1})`,
+          seatNumber: student.seatNumber
         });
-      } else {
-        // Mapping separate file to corresponding seat (if any) or sequentially
+      });
+      addLog(`📂 成功裝載單一 PDF 檔：已為當前出席之 ${presentStudents.length} 位學生依序分頁配對考卷`);
+    } else {
+      // Multiple separate PDF/JPG/PNG files mapped in sequential seat number order
+      fileArray.forEach((file, index) => {
         const assignedStudent = presentStudents[index % presentStudents.length];
         newSimFiles.push({
-          id: `${file.name}-${index}`,
+          id: `${file.name}-${index}-${Math.random()}`,
           name: file.name,
           seatNumber: assignedStudent ? assignedStudent.seatNumber : index + 1
         });
-      }
-    });
+      });
+      addLog(`📂 成功裝載整疊獨立考卷：已讀入 ${fileArray.length} 份檔案，並依序分派對應座號`);
+    }
 
     setSimFiles(newSimFiles);
     setLocalError(null);
-    addLog(`📂 成功裝載全班作業影像/PDF 模組：共載入 ${newSimFiles.length} 頁獨立考卷`);
   };
 
   const handleGenerateSimBundle = () => {
+    if (presentStudents.length === 0) {
+      setLocalError("目前第二步中無任何勾選出席的學生，請先新增/勾選個別學生出席！");
+      return;
+    }
     const newSimFiles: SimFile[] = presentStudents.map((student, idx) => ({
       id: `sim-page-${student.seatNumber}`,
       name: `Compiled_Class_Exams_Seat_${student.seatNumber.toString().padStart(2, "0")}.pdf`,
@@ -440,7 +389,6 @@ export default function BatchGradingDesk({
 
   // Clear states
   const resetBatchGrading = () => {
-    setUploadedFiles([]);
     setSimFiles([]);
     setProcessQueue([]);
     setLogs([]);
@@ -476,20 +424,8 @@ export default function BatchGradingDesk({
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
-            <Sparkles className="w-3 h-3 text-emerald-400" />
-            一鍵模擬全班 (Demo)
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("files")}
-            className={`py-1.5 px-3 rounded text-[11px] font-bold transition-all flex items-center gap-1 ${
-              activeTab === "files"
-                ? "bg-slate-900 text-white shadow-xs"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            <Upload className="w-3 h-3" />
-            整疊拍照上傳 (Images)
+            <Sparkles className="w-3.5 h-3.5 text-teal-500 animate-pulse" />
+            一鍵批改全班 (Class Batch Grading)
           </button>
           <button
             type="button"
@@ -500,7 +436,7 @@ export default function BatchGradingDesk({
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
-            <FileText className="w-3 h-3" />
+            <FileText className="w-3.5 h-3.5" />
             批次貼上打字 (Text)
           </button>
         </div>
@@ -518,79 +454,6 @@ export default function BatchGradingDesk({
         
         {/* Left Side: Setup Column */}
         <div className="lg:col-span-5 space-y-4">
-          
-          {/* Tab Content A: File Multi Upload */}
-          {activeTab === "files" && (
-            <div className="space-y-3">
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">整疊拍照排序上傳</span>
-              <p className="text-[11px] text-slate-500 leading-normal">
-                請在此上傳全班學生的答題拍照。<b>系統將依檔名排序 (alphabetical name order) 依序對應至目前第二步中勾選出席的座號</b>。
-              </p>
-
-              {uploadedFiles.length > 0 ? (
-                <div className="border border-slate-200 rounded-lg p-3 bg-slate-50 space-y-2 max-h-[250px] overflow-y-auto">
-                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
-                    <span>已載入 {uploadedFiles.length} 份文件</span>
-                    <button
-                      onClick={() => setUploadedFiles([])}
-                      className="text-rose-500 hover:text-rose-600 flex items-center gap-0.5"
-                    >
-                      <Trash2 className="w-3 h-3" /> 清空
-                    </button>
-                  </div>
-                  <div className="divide-y divide-slate-200">
-                    {uploadedFiles.map((f, i) => (
-                      <div key={i} className="py-1.5 text-xs font-mono text-slate-700 flex justify-between">
-                        <span className="truncate max-w-[170px]">{f.name}</span>
-                        <span className="text-teal-600 font-bold">➥ 對應座位 #{presentSeatNumbers[i % presentSeatNumbers.length]?.toString().padStart(2, "0")} 號</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div
-                  onDragEnter={handleDrag}
-                  onDragOver={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDrop={handleDrop}
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
-                    dragActive
-                      ? "border-cyan-500 bg-cyan-50/50 text-cyan-700"
-                      : "border-slate-300 hover:border-slate-400 bg-slate-50/50 text-slate-500"
-                  }`}
-                >
-                  <Upload className="w-8 h-8 mx-auto mb-2 text-slate-300 animate-bounce" />
-                  <p className="text-xs font-bold text-slate-700">選擇多張拍照影像、或整疊拖曳至此</p>
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    一次支援並批處理 60 名學生手寫拍照 (PNG/JPG檔)
-                  </p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={startFileBatchGrading}
-                disabled={isProcessing || uploadedFiles.length === 0}
-                className={`w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 ${
-                  isProcessing || uploadedFiles.length === 0
-                    ? "bg-slate-100 text-slate-400 cursor-not-allowed border"
-                    : "bg-teal-600 hover:bg-teal-700 text-white shadow-xs"
-                }`}
-              >
-                <Play className="w-3.5 h-3.5 fill-current" />
-                排程並啟動 OCR 音能整批批改
-              </button>
-            </div>
-          )}
 
           {/* Tab Content B: Combined Text Paste */}
           {activeTab === "text" && (
@@ -637,12 +500,12 @@ export default function BatchGradingDesk({
           {activeTab === "simulator" && (
             <div className="space-y-4">
               <span className="text-[10px] uppercase font-bold text-teal-600 tracking-wider flex items-center gap-1 bg-teal-50 border border-teal-200/50 px-2 py-0.5 rounded w-max">
-                <Sparkles className="w-3 h-3 text-teal-500 animate-pulse" /> CLASS EVALUATION SANDBOX
+                <Sparkles className="w-3 h-3 text-teal-500 animate-pulse" /> CLASS EVALUATION CORE
               </span>
               <div>
-                <h5 className="text-xs font-bold text-slate-800">一鍵智能模擬批改全班 (Simulated Batch evaluation)</h5>
+                <h5 className="text-xs font-bold text-slate-800">一鍵智能分配全班批改 (Class Batch Grading)</h5>
                 <p className="text-[11px] text-slate-500 leading-relaxed mt-1">
-                  依實際批改情境：先上載全班整疊手寫 PDF 考卷檔或多份影像檔，系統隨即自動配置至對應座號，並允許您人工校正分派狀態。
+                  請先上傳全班手寫 PDF/影像卷（支援單頁多頁檔或多份影像檔），系統將依出席名單或檔名順序自動分配。您隨時可按需手動微調校正。
                 </p>
               </div>
 
@@ -652,14 +515,7 @@ export default function BatchGradingDesk({
                     onDragEnter={handleDrag}
                     onDragOver={handleDrag}
                     onDragLeave={handleDrag}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setDragActive(false);
-                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                        handleSimFilesUpload(e.dataTransfer.files);
-                      }
-                    }}
+                    onDrop={handleDrop}
                     onClick={() => simFileInputRef.current?.click()}
                     className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
                       dragActive
@@ -668,9 +524,9 @@ export default function BatchGradingDesk({
                     }`}
                   >
                     <Upload className="w-7 h-7 mx-auto mb-2 text-slate-300" />
-                    <p className="text-xs font-bold text-slate-700">選擇或拖曳整疊作業 PDF / 影像至此</p>
+                    <p className="text-xs font-bold text-slate-700">選擇或拖曳全班 PDF / 影像至此</p>
                     <p className="text-[10px] text-slate-400 mt-1">
-                      支援單一 PDF（依出席人數自動拆頁）或多張答題拍照檔
+                      選擇 1 份 PDF（依出席人數自動分頁對應）或同時框選多份 PDF/影像考卷
                     </p>
                     <input
                       ref={simFileInputRef}
@@ -687,7 +543,7 @@ export default function BatchGradingDesk({
                   </div>
 
                   <div className="text-center py-1">
-                    <span className="text-[10px] text-slate-400 font-mono">— OR / 或直接模擬測試 —</span>
+                    <span className="text-[10px] text-slate-400 font-mono">— OR / 或點此模擬體驗 —</span>
                   </div>
 
                   <button
@@ -697,15 +553,15 @@ export default function BatchGradingDesk({
                     className="w-full py-2 px-3 border border-dashed border-teal-500/40 hover:border-teal-500/80 bg-teal-500/5 hover:bg-teal-500/10 text-teal-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all text-center"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    沒備妥實體 PDF？一鍵生成模擬全班 20 位學生卷裝卷
+                    未備妥實體卷？點此自動載入全班模擬考卷組 (Demo)
                   </button>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {/* Loaded Simulation Files and Seat Allocations */}
                   <div className="border border-slate-200 rounded-lg p-3 bg-slate-50 space-y-2.5 max-h-[280px] overflow-y-auto">
-                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 border-b border-slate-250/60 pb-1.5">
-                      <span className="flex items-center gap-1">
+                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 border-b border-slate-205 pb-1.5">
+                      <span className="flex items-center gap-1 text-slate-700">
                         <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
                         已封裝全班 {simFiles.length} 份考卷檔案
                       </span>
