@@ -26,12 +26,13 @@ export const TRANSLATIONS: TranslationDictionary = {
 
   // Navigation Header
   "navTitle": {
-    zh: "GSAT 英文非選擇題 AI 批閱與學術診斷平台",
-    en: "GSAT English Translation AI Evaluation & Academic Diagnosis Platform"
+    zh: "學測翻譯題班級批改器",
+    en: "Class-based GSAT Translation AI Grader",
+    bi: "Class-based GSAT Translation AI Grader 學測翻譯題班級批改器"
   },
   "navSubtitle": {
-    zh: "臺灣高中英文學術指引 · 搭載 Gemini 大語言智慧引擎",
-    en: "Taiwan HS English Academic Guide · Powered by Gemini Intelligence Engine"
+    zh: "Designed by Shirley Du",
+    en: "Designed by Shirley Du"
   },
   "navEngine": {
     zh: "學術評分：4.0 分扣分制",
