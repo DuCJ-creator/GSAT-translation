@@ -83,7 +83,7 @@ export default function SeatLayout({
 
       {/* Grid of Student Card Buttons */}
       <div className="p-4">
-        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
+        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-3 xl:grid-cols-4 gap-2">
           {seatNumbers.map((seatNo) => {
             const student = students.find((s) => s.seatNumber === seatNo);
             const isAbsent = student?.status === "absent";
