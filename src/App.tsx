@@ -10,7 +10,8 @@ import { LangType, getTranslation } from "./lib/translations";
 import { 
   Award, BookOpen, GraduationCap, Sparkles, 
   ChevronRight, Heart, FileDown, Layers, CheckSquare, 
-  HelpCircle, Eye, RefreshCw, FileText, Globe
+  HelpCircle, Eye, RefreshCw, FileText, Globe,
+  Settings, Users, BarChart3, FileSpreadsheet, ChevronDown, ChevronUp, ChevronLeft, ArrowRight
 } from "lucide-react";
 
 export default function App() {
@@ -19,6 +20,38 @@ export default function App() {
   const [maxSeats, setMaxSeats] = useState<number>(20);
   const [students, setStudents] = useState<StudentGrading[]>([]);
   const [activeSeat, setActiveSeat] = useState<number | null>(null);
+  const [promptSetupOpen, setPromptSetupOpen] = useState<boolean>(false);
+  const [rightTab, setRightTab] = useState<"batch" | "stats" | "transcript">("batch");
+
+  // Handle navigating to next present student
+  const handleNextStudent = () => {
+    if (activeSeat === null) return;
+    const presentSeats = students
+      .filter((s) => s.status !== "absent")
+      .map((s) => s.seatNumber)
+      .sort((a, b) => a - b);
+    const currentIndex = presentSeats.indexOf(activeSeat);
+    if (currentIndex !== -1 && currentIndex < presentSeats.length - 1) {
+      setActiveSeat(presentSeats[currentIndex + 1]);
+    } else if (presentSeats.length > 0) {
+      setActiveSeat(presentSeats[0]); // Wrap around
+    }
+  };
+
+  // Handle navigating to previous present student
+  const handlePrevStudent = () => {
+    if (activeSeat === null) return;
+    const presentSeats = students
+      .filter((s) => s.status !== "absent")
+      .map((s) => s.seatNumber)
+      .sort((a, b) => a - b);
+    const currentIndex = presentSeats.indexOf(activeSeat);
+    if (currentIndex > 0) {
+      setActiveSeat(presentSeats[currentIndex - 1]);
+    } else if (presentSeats.length > 0) {
+      setActiveSeat(presentSeats[presentSeats.length - 1]); // Wrap around
+    }
+  };
 
   // Initialize students array when maxSeats changes
   useEffect(() => {
@@ -181,219 +214,368 @@ export default function App() {
       </header>
 
       {/* Main Container Workspace */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 space-y-5">
         
         {/* Academic Introductory Box banner */}
-        <div className="bg-radial from-teal-900 to-slate-950 text-white p-6 rounded-2xl border border-teal-800/30 relative overflow-hidden shadow-md">
+        <div className="bg-gradient-to-r from-slate-900 via-slate-950 to-teal-950 text-white p-5 rounded-2xl border border-teal-500/10 relative overflow-hidden shadow-md">
           <div className="absolute top-0 right-0 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
-          <div className="absolute -bottom-10 -left-10 w-60 h-60 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none"></div>
-
-          <div className="relative z-10 max-w-3xl space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-teal-400/15 border border-teal-400/20 text-teal-300 text-[10px] font-bold rounded-full uppercase tracking-wider">
-              <Sparkles className="w-3 h-3 text-amber-400" /> {getTranslation("bannerBadge", lang)}
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-teal-400/10 border border-teal-400/20 text-teal-300 text-[10px] font-bold rounded-full tracking-wider">
+                <Sparkles className="w-2.5 h-2.5 text-amber-400" /> {getTranslation("bannerBadge", lang)}
+              </div>
+              <h2 className="text-lg md:text-xl font-extrabold tracking-tight">
+                {getTranslation("bannerTitle", lang)}
+              </h2>
+              <p className="text-[11px] md:text-xs text-slate-300 leading-relaxed max-w-3xl">
+                {getTranslation("bannerDesc", lang)}
+              </p>
             </div>
-            <h2 className="text-xl md:text-2xl font-extrabold tracking-tight">
-              {getTranslation("bannerTitle", lang)}
-            </h2>
-            <p className="text-xs md:text-sm text-slate-300 leading-relaxed max-w-2xl">
-              {getTranslation("bannerDesc", lang)}
-            </p>
           </div>
         </div>
 
-        {/* Level 1: Prompt Input Canvas (Full Width) */}
-        <section id="step-1-canvas">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-bold">1</span>
-            <h3 className="font-bold text-sm text-slate-800">
-              {getTranslation("step1", lang)}
-            </h3>
-          </div>
-          <PromptCanvas 
-            onAnalysisGenerated={(analysis) => setPromptAnalysis(analysis)} 
-            currentAnalysis={promptAnalysis} 
-            lang={lang}
-          />
-        </section>
-
-        {/* Level 2: Seat Status Grid (1-50 Organizer) */}
-        <section id="step-2-seat-table">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-bold">2</span>
-            <h3 className="font-bold text-sm text-slate-800">
-              {getTranslation("step2", lang)}
-            </h3>
-          </div>
-          <SeatLayout
-            students={students}
-            activeSeat={activeSeat}
-            onSelectSeat={handleSelectSeat}
-            onTogglePresence={handleTogglePresence}
-            onSetAllPresence={handleSetAllPresence}
-            maxSeats={maxSeats}
-            onSetMaxSeats={setMaxSeats}
-            lang={lang}
-          />
-        </section>
-
-        {/* Level 3: Active Workspace Desk */}
-        {activeSeat !== null ? (
-          <section id="step-3-desk" className="scroll-mt-20 space-y-2">
-            <div className="flex items-center justify-between gap-4 mb-2">
-              <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-bold">3</span>
-                <h3 className="font-bold text-sm text-slate-800">
-                  {getTranslation("step3Desk", lang)}
-                </h3>
+        {/* MASTER COMPACT PROMPT BOX (Accordion) */}
+        <section className="bg-white rounded-xl border border-slate-200 shadow-3xs overflow-hidden transition-all duration-200">
+          <div 
+            onClick={() => setPromptSetupOpen(!promptSetupOpen)}
+            className="p-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between cursor-pointer hover:bg-slate-100/70 transition-colors"
+          >
+            <div className="flex items-center gap-2 overflow-hidden text-ellipsis mr-4">
+              <BookOpen className="w-4 h-4 text-teal-600 shrink-0" />
+              <div className="text-xs truncate">
+                <span className="font-bold text-slate-800">
+                  {lang === "zh" ? "📖 當前翻譯題及常模設定：" : lang === "en" ? "📖 Active Prompts & Norms:" : "📖 當前翻譯題及設定 (Active Prompt):"}
+                </span>
+                <span className="text-slate-500 font-mono ml-1.5 bg-slate-200/60 px-1.5 py-0.5 rounded text-[10px]">
+                  {promptAnalysis ? "Parsed / 已連載" : "Default / 載入中"}
+                </span>
+                <span className="text-slate-600 font-medium ml-2 text-[11px] truncate hidden md:inline">
+                  {DEMO_PROMPTS[0].sentence1Chinese.slice(0, 15)}... & {DEMO_PROMPTS[0].sentence2Chinese.slice(0, 15)}...
+                </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setActiveSeat(null)}
-                className="bg-slate-900 hover:bg-slate-850 text-white text-[11px] font-bold py-1.5 px-3.5 rounded-lg flex items-center gap-1 shadow-xs transition-colors duration-150 cursor-pointer"
-              >
-                {getTranslation("backButtonText", lang)}
-              </button>
             </div>
-            <GradingDesk
-              activeSeat={activeSeat}
-              student={students.find((s) => s.seatNumber === activeSeat)!}
-              promptAnalysis={promptAnalysis}
-              onGradingComplete={handleGradingComplete}
-              lang={lang}
-            />
-          </section>
-        ) : (
-          <section id="step-3-desk" className="scroll-mt-20 space-y-2">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="w-6 h-6 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-bold">3</span>
-              <h3 className="font-bold text-sm text-slate-800">
-                {getTranslation("step3", lang)}
-              </h3>
+            <div className="text-neutral-500 hover:text-neutral-700 p-1 flex items-center gap-1 text-[11px] font-bold">
+              {promptSetupOpen ? (
+                <>
+                  <span>{lang === "zh" ? "收合設定" : lang === "en" ? "Collapse Settings" : "收合設定 (Collapse)"}</span>
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </>
+              ) : (
+                <>
+                  <span>{lang === "zh" ? "展開編輯與常模" : lang === "en" ? "Configure Prompt & AI Norms" : "展開編輯與常模 (Configure)"}</span>
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </>
+              )}
             </div>
-            <BatchGradingDesk
+          </div>
+
+          {/* Conditional PromptCanvas content with slide/fade */}
+          {promptSetupOpen && (
+            <div className="border-t border-slate-100 bg-white">
+              <PromptCanvas 
+                onAnalysisGenerated={(analysis) => {
+                  setPromptAnalysis(analysis);
+                  // Auto close accordion after parse so the workspace is immediately visible
+                  setPromptSetupOpen(false);
+                }} 
+                currentAnalysis={promptAnalysis} 
+                lang={lang}
+              />
+            </div>
+          )}
+        </section>
+
+        {/* TWO-COLUMN SPLIT DASHBOARD WORKSPACE */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          
+          {/* LEFT SIDEBAR PANEL (Seat Layout Grid & Presence - width: 4/12) */}
+          <div className="lg:col-span-4 lg:sticky lg:top-18 space-y-3">
+            <SeatLayout
               students={students}
-              promptAnalysis={promptAnalysis}
-              onGradingComplete={handleGradingComplete}
+              activeSeat={activeSeat}
               onSelectSeat={handleSelectSeat}
-              onSetStudents={setStudents}
+              onTogglePresence={handleTogglePresence}
+              onSetAllPresence={handleSetAllPresence}
+              maxSeats={maxSeats}
+              onSetMaxSeats={setMaxSeats}
               lang={lang}
             />
-          </section>
-        )}
 
-        {/* Level 4: Classroom Metrics & Dashboard Analytics */}
-        <section id="step-4-statistics">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-bold">4</span>
-            <h3 className="font-bold text-sm text-slate-800">
-              {getTranslation("step4", lang)}
-            </h3>
-          </div>
-          <ClassStats students={students} lang={lang} />
-        </section>
-
-        {/* Level 5: Detailed Printed Gradebook Summary (Taiwanese High School Print Format) */}
-        {students.filter(s => s.status === "graded").length > 0 && (
-          <section id="step-5-gradebook" className="bg-white rounded-xl border border-slate-200 shadow-3xs overflow-hidden">
-            <div className="bg-slate-900 text-white p-4 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-emerald-400" />
+            {/* Attendance Analytics Indicators Card */}
+            <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-3xs text-[10px] text-slate-500 grid grid-cols-3 gap-1 text-center font-medium font-mono">
               <div>
-                <h3 className="font-semibold text-sm text-slate-100">{getTranslation("step5", lang)}</h3>
-                <p className="text-[10px] text-slate-400">{getTranslation("step5Sub", lang)}</p>
+                <span className="text-slate-400 block text-[9.5px] font-sans uppercase">{lang === "zh" ? "總人數" : "TOTAL"}</span>
+                <span className="text-slate-800 font-bold text-xs">{students.length}</span>
+              </div>
+              <div>
+                <span className="text-emerald-500 block text-[9.5px] font-sans uppercase">{lang === "zh" ? "出席" : "PRESENT"}</span>
+                <span className="text-emerald-700 font-bold text-xs">{students.filter(s => s.status !== "absent").length}</span>
+              </div>
+              <div>
+                <span className="text-indigo-50 block text-[9.5px] font-sans uppercase bg-indigo-100/60 p-0.5 rounded text-indigo-700">{lang === "zh" ? "已批改" : "GRADED"}</span>
+                <span className="text-indigo-700 font-bold text-xs block mt-0.5">{students.filter(s => s.status === "graded").length}</span>
               </div>
             </div>
+          </div>
 
-            <div className="p-4 overflow-x-auto">
-              <table className="w-full text-xs text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-400 text-[10px] font-bold uppercase bg-slate-50/50">
-                    <th className="py-2.5 px-3">
-                      {lang === "zh" ? "座號" : lang === "en" ? "Seat No." : "座號 (Seat)"}
-                    </th>
-                    <th className="py-2.5 px-3">
-                      {lang === "zh" ? "辨識狀態" : lang === "en" ? "OCR Evaluation State" : "原卷辨識狀態 (OCR State)"}
-                    </th>
-                    <th className="py-2.5 px-3">
-                      {lang === "zh" ? "第一句 S1 (4.0分)" : lang === "en" ? "Sentence S1 (4.0)" : "第一句 S1 (4.0)"}
-                    </th>
-                    <th className="py-2.5 px-3">
-                      {lang === "zh" ? "第二句 S2 (4.0分)" : lang === "en" ? "Sentence S2 (4.0)" : "第二句 S2 (4.0)"}
-                    </th>
-                    <th className="py-2.5 px-3">
-                      {lang === "zh" ? "總分 (8.0分)" : lang === "en" ? "Grand Total (8.0)" : "大考總分 (8.0)"}
-                    </th>
-                    <th className="py-2.5 px-3">
-                      {lang === "zh" ? "語法障礙及錯字摘要" : lang === "en" ? "Primary Errors Found" : "語法障礙重點 (Primary Defect Check)"}
-                    </th>
-                    <th className="py-2.5 px-3 text-right">
-                      {lang === "zh" ? "作業評分" : lang === "en" ? "Action" : "作業評分"}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {students.map((student) => {
-                    const isGraded = student.status === "graded";
-                    const isAbsent = student.status === "absent";
+          {/* RIGHT MAIN PANEL (Action Center - width: 8/12) */}
+          <div className="lg:col-span-8">
+            {activeSeat !== null ? (
+              /* INDIVIDUAL STUDENT WORKSPACE */
+              <div className="space-y-4">
+                
+                {/* Individual navigation toolbar (Dynamic Control Bar) */}
+                <div className="bg-white rounded-xl border border-slate-250 p-3 shadow-2xs flex items-center justify-between flex-wrap gap-2 transition-all">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-7 h-7 rounded-lg bg-teal-600 text-white flex items-center justify-center text-xs font-mono font-bold shadow-xs">
+                      #{activeSeat.toString().padStart(2, "0")}
+                    </span>
+                    <div>
+                      <h4 className="font-extrabold text-sm text-slate-900 leading-tight">
+                        {lang === "zh" ? `座位 ${activeSeat} 號 · 個別作答學診分析` : lang === "en" ? `Seat #${activeSeat} Interactive Grading` : `座位 ${activeSeat} 號 (Seat #${activeSeat})`}
+                      </h4>
+                      <p className="text-[10px] text-slate-400 font-medium">
+                        {students.find(s => s.seatNumber === activeSeat)?.status === "graded" 
+                          ? (lang === "zh" ? "🎉 評分診斷已完成，可點擊左右側按鍵切換下一個學生" : "Graded & Analyzed successfully")
+                          : (lang === "zh" ? "⏳ 等待作答輸入或調卷模擬 (Awaiting Script Submission)" : "Awaiting response inputs")}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Horizontal Sequential Student Navigation Helpers */}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handlePrevStudent}
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-250 p-1.5 rounded-lg flex items-center text-xs transition-all cursor-pointer font-bold"
+                      title="上一個學生"
+                    >
+                      <ChevronLeft className="w-4 h-4 mr-0.5" />
+                      <span>{lang === "zh" ? "前一位" : "Prev"}</span>
+                    </button>
                     
-                    if (isAbsent) {
-                      return (
-                        <tr key={student.seatNumber} className="hover:bg-slate-50 text-slate-400">
-                          <td className="py-2.5 px-3 font-mono font-bold">{student.seatNumber.toString().padStart(2, "0")}</td>
-                          <td className="py-2.5 px-3" colSpan={5}>
-                            <span className="text-[10px] bg-slate-100 text-slate-400 px-2 py-0.5 rounded">
-                              {lang === "zh" ? "未到/缺席" : lang === "en" ? "Absent" : "未到/缺席 (Absent)"}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-3 text-right">-</td>
-                        </tr>
-                      );
-                    }
+                    <button
+                      type="button"
+                      onClick={handleNextStudent}
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-250 p-1.5 rounded-lg flex items-center text-xs transition-all cursor-pointer font-bold"
+                      title="下一個學生"
+                    >
+                      <span>{lang === "zh" ? "後一位" : "Next"}</span>
+                      <ChevronRight className="w-4 h-4 ml-0.5" />
+                    </button>
 
-                    return (
-                      <tr key={student.seatNumber} className="hover:bg-slate-50">
-                        <td className="py-2.5 px-3 font-mono font-bold text-slate-800">
-                          {student.seatNumber.toString().padStart(2, "0")} {lang === "en" ? "" : "號"}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          {isGraded ? (
-                            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-sm">
-                              {lang === "zh" ? "OCR 已完成評分" : lang === "en" ? "Graded & Analyzed" : "OCR 已辨識並批改"}
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-slate-400">
-                              {lang === "zh" ? "（待評）" : lang === "en" ? "(Pending)" : "（待評）"}
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 font-mono font-bold">
-                          {isGraded ? `${student.score1?.toFixed(1)} Pts` : "-"}
-                        </td>
-                        <td className="py-2.5 px-3 font-mono font-bold">
-                          {isGraded ? `${student.score2?.toFixed(1)} Pts` : "-"}
-                        </td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-rose-600">
-                          {isGraded ? `${student.totalScore?.toFixed(1)} Pts` : "-"}
-                        </td>
-                        <td className="py-2.5 px-3 text-slate-500 max-w-[300px] truncate leading-normal" title={student.majorIssues || ""}>
-                          {isGraded ? student.majorIssues : "無資訊"}
-                        </td>
-                        <td className="py-2.5 px-3 text-right">
-                          <button
-                            onClick={() => handleSelectSeat(student.seatNumber)}
-                            className="bg-slate-900 text-white font-bold text-[10px] py-1 px-2.5 rounded-md hover:bg-slate-800 transition-colors cursor-pointer"
+                    <div className="w-px h-5 bg-slate-200 mx-1"></div>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveSeat(null)}
+                      className="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                    >
+                      {getTranslation("backToClass", lang)}
+                    </button>
+                  </div>
+                </div>
+
+                {/* GradingDesk View */}
+                <GradingDesk
+                  activeSeat={activeSeat}
+                  student={students.find((s) => s.seatNumber === activeSeat)!}
+                  promptAnalysis={promptAnalysis}
+                  onGradingComplete={handleGradingComplete}
+                  lang={lang}
+                />
+              </div>
+            ) : (
+              /* CLASS ASSESSMENT HUB (WITHOUT ACTIVE SEAT SELECTED) */
+              <div className="space-y-4">
+                
+                {/* Tab layout headers */}
+                <div className="bg-white rounded-xl border border-slate-200 p-1.5 shadow-3xs flex items-center gap-1.5 font-bold text-xs select-none">
+                  <button
+                    onClick={() => setRightTab("batch")}
+                    className={`flex-1 py-1.5 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all text-center cursor-pointer ${
+                      rightTab === "batch"
+                        ? "bg-slate-950 text-white shadow-sm"
+                        : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-900"
+                    }`}
+                  >
+                    <Layers className="w-4 h-4 hover:translate-y-px transition-transform text-teal-400" />
+                    <span>{lang === "zh" ? "整批自動批改" : lang === "en" ? "Batch Grading Center" : "整批自動批改"}</span>
+                  </button>
+
+                  <button
+                    onClick={() => setRightTab("stats")}
+                    className={`flex-1 py-1.5 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all text-center cursor-pointer ${
+                      rightTab === "stats"
+                        ? "bg-slate-950 text-white shadow-sm"
+                        : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-900"
+                    }`}
+                  >
+                    <BarChart3 className="w-4 h-4 hover:scale-105 transition-transform text-teal-400" />
+                    <span>{lang === "zh" ? "全班大會統計" : lang === "en" ? "Class Analytics" : "全班大會統計"}</span>
+                    {students.filter(s => s.status === "graded").length > 0 && (
+                      <span className="bg-emerald-500 text-white text-[9px] px-1.5 py-0.2 rounded-full font-mono">
+                        {students.filter(s => s.status === "graded").length}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => setRightTab("transcript")}
+                    className={`flex-1 py-1.5 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all text-center cursor-pointer ${
+                      rightTab === "transcript"
+                        ? "bg-slate-950 text-white shadow-sm"
+                        : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-900"
+                    }`}
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-teal-400" />
+                    <span>{lang === "zh" ? "評分總表 transcript" : lang === "en" ? "Transcript" : "大考成績總表"}</span>
+                  </button>
+                </div>
+
+                {/* Tab dynamic container */}
+                <div className="transition-all duration-155">
+                  {rightTab === "batch" && (
+                    <BatchGradingDesk
+                      students={students}
+                      promptAnalysis={promptAnalysis}
+                      onGradingComplete={handleGradingComplete}
+                      onSelectSeat={handleSelectSeat}
+                      onSetStudents={setStudents}
+                      lang={lang}
+                    />
+                  )}
+
+                  {rightTab === "stats" && (
+                    <ClassStats students={students} lang={lang} />
+                  )}
+
+                  {rightTab === "transcript" && (
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-3xs overflow-hidden">
+                      <div className="bg-slate-900 text-white p-3.5 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                          <div>
+                            <h3 className="font-bold text-xs text-slate-100">{getTranslation("step5", lang)}</h3>
+                            <span className="text-[9px] text-slate-400 block -mt-0.5">{getTranslation("step5Sub", lang)}</span>
+                          </div>
+                        </div>
+                        {students.filter(s => s.status === "graded").length > 0 && (
+                          <button 
+                            onClick={() => window.print()}
+                            className="bg-slate-800 hover:bg-slate-750 text-white border border-slate-700 text-[10px] font-bold py-1 px-2.5 rounded flex items-center gap-1 cursor-pointer transition-colors"
                           >
-                            {lang === "zh" ? "觀看學生卷" : lang === "en" ? "Review Script" : "調照檢視"}
+                            <FileDown className="w-3 h-3" />
+                            <span>{lang === "zh" ? "列印學術報表 (Print)" : "Print Transcript"}</span>
                           </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
+                        )}
+                      </div>
 
+                      <div className="p-3 overflow-x-auto">
+                        {students.filter(s => s.status === "graded").length === 0 ? (
+                          <div className="text-center py-10 text-slate-400 space-y-2.5">
+                            <FileSpreadsheet className="w-10 h-10 stroke-1 mx-auto text-slate-350" />
+                            <div className="text-xs font-semibold">{lang === "zh" ? "尚無批改資料可登錄成績單" : "No grader data parsed yet"}</div>
+                            <div className="text-[10px] max-w-sm mx-auto text-slate-400">
+                              {lang === "zh" ? "請點選左側座位個別評分，或切換至第一分頁一鍵模擬模擬/整批批改，隨即在此列印正式臺灣高中大考成績表。" : "Please input individual responses or execute batch simulator scripts first."}
+                            </div>
+                          </div>
+                        ) : (
+                          <table className="w-full text-[11px] text-left border-collapse">
+                            <thead>
+                              <tr className="border-b border-slate-200 text-slate-400 text-[9.5px] font-bold uppercase bg-slate-50/50">
+                                <th className="py-2.5 px-3">
+                                  {lang === "zh" ? "座號" : lang === "en" ? "Seat No." : "座號 (Seat)"}
+                                </th>
+                                <th className="py-2.5 px-3">
+                                  {lang === "zh" ? "辨識狀態" : lang === "en" ? "OCR State" : "原卷辨識狀態 (OCR State)"}
+                                </th>
+                                <th className="py-2.5 px-3">
+                                  {lang === "zh" ? "第一句 S1 (4.0分)" : lang === "en" ? "Sentence S1 (4.0)" : "第一句 S1 (4.0)"}
+                                </th>
+                                <th className="py-2.5 px-3">
+                                  {lang === "zh" ? "第二句 S2 (4.0分)" : lang === "en" ? "Sentence S2 (4.0)" : "第二句 S2 (4.0)"}
+                                </th>
+                                <th className="py-2.5 px-3">
+                                  {lang === "zh" ? "總分 (8.0分)" : lang === "en" ? "Grand Total (8.0)" : "大考總分 (8.0)"}
+                                </th>
+                                <th className="py-2.5 px-3">
+                                  {lang === "zh" ? "語法障礙及錯字摘要" : lang === "en" ? "Errors Found" : "語法障礙重點"}
+                                </th>
+                                <th className="py-2.5 px-3 text-right">
+                                  {lang === "zh" ? "作業評分" : lang === "en" ? "Action" : "作業評分"}
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {students.map((student) => {
+                                const isGraded = student.status === "graded";
+                                const isAbsent = student.status === "absent";
+                                
+                                if (isAbsent) {
+                                  return (
+                                    <tr key={student.seatNumber} className="hover:bg-slate-50 text-slate-400/80">
+                                      <td className="py-2 px-3 font-mono font-bold">{student.seatNumber.toString().padStart(2, "0")}</td>
+                                      <td className="py-2 px-3 text-[10px]" colSpan={5}>
+                                        <span className="bg-slate-100 text-slate-400 px-1.5 py-0.2 rounded font-semibold text-[9px]">
+                                          {lang === "zh" ? "未到/缺席" : lang === "en" ? "Absent" : "未到/缺席 (Absent)"}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 px-3 text-right">-</td>
+                                    </tr>
+                                  );
+                                }
+
+                                return (
+                                  <tr key={student.seatNumber} className="hover:bg-slate-50">
+                                    <td className="py-2 px-3 font-mono font-bold text-slate-850">
+                                      {student.seatNumber.toString().padStart(2, "0")} {lang === "en" ? "" : "號"}
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      {isGraded ? (
+                                        <span className="text-[9.5px] bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold px-2 py-0.2 rounded">
+                                          {lang === "zh" ? "已完成批改" : lang === "en" ? "Graded" : "OCR 已評"}
+                                        </span>
+                                      ) : (
+                                        <span className="text-[9.5px] text-slate-400 italic">
+                                          {lang === "zh" ? "待評分" : lang === "en" ? "Pending" : "（待評）"}
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="py-2 px-3 font-mono">
+                                      {isGraded ? `${student.score1?.toFixed(1)} Pts` : "-"}
+                                    </td>
+                                    <td className="py-2 px-3 font-mono">
+                                      {isGraded ? `${student.score2?.toFixed(1)} Pts` : "-"}
+                                    </td>
+                                    <td className="py-2 px-3 font-mono font-bold text-teal-850">
+                                      {isGraded ? `${student.totalScore?.toFixed(1)}` : "-"}
+                                    </td>
+                                    <td className="py-2 px-3 text-slate-500 max-w-[200px] truncate leading-normal" title={student.majorIssues || ""}>
+                                      {isGraded ? student.majorIssues : "-"}
+                                    </td>
+                                    <td className="py-2 px-3 text-right">
+                                      <button
+                                        onClick={() => handleSelectSeat(student.seatNumber)}
+                                        className="bg-slate-800 text-white font-bold text-[9.5px] py-1 px-2 rounded-md hover:bg-slate-700 transition-all cursor-pointer"
+                                      >
+                                        {lang === "zh" ? "觀看學生卷" : lang === "en" ? "Review" : "調照檢視"}
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </main>
 
       {/* Modern minimal academic credits footer */}
