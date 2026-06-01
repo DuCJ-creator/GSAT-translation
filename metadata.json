@@ -1,0 +1,8 @@
+{
+  "name": "GSAT English Translation Grading Platform",
+  "description": "Interactive GSAT English translation prompt analyzer, student seat organizer, OCR scanner, and AI assisted grading platform.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
