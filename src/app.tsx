@@ -20,7 +20,7 @@ export default function App() {
   const [maxSeats, setMaxSeats] = useState<number>(20);
   const [students, setStudents] = useState<StudentGrading[]>([]);
   const [activeSeat, setActiveSeat] = useState<number | null>(null);
-  const [promptSetupOpen, setPromptSetupOpen] = useState<boolean>(false);
+  const [promptSetupOpen, setPromptSetupOpen] = useState<boolean>(true);
   const [rightTab, setRightTab] = useState<"batch" | "stats" | "transcript">("batch");
 
   // Handle navigating to next present student
@@ -137,31 +137,63 @@ export default function App() {
     );
   };
 
-  // Auto-generate analysis on load with the first preset to avoid a blank screen
-  useEffect(() => {
-    const triggerDefaultAnalysis = async () => {
-      try {
-        const univPrompt = DEMO_PROMPTS[0];
-        const res = await fetch("/api/analyze-prompt", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sentence1: univPrompt.sentence1Chinese,
-            sentence2: univPrompt.sentence2Chinese,
-          }),
-        });
-        if (res.ok) {
-          const data = await res.ok ? await res.json() : null;
-          if (data) {
-            setPromptAnalysis(data);
-          }
-        }
-      } catch (err) {
-        console.warn("Could not pre-load default prompt analysis", err);
+  // Export current grades and student responses to CSV/Excel format compatible with MS Excel (UTF-8 BOM)
+  const handleExportExcel = () => {
+    const headers = [
+      lang === "zh" ? "座號" : "Seat No.",
+      lang === "zh" ? "狀態" : "Status",
+      lang === "zh" ? "第一句得分 (4.0分)" : "S1 Score (4.0)",
+      lang === "zh" ? "第二句得分 (4.0分)" : "S2 Score (4.0)",
+      lang === "zh" ? "總分 (8.0分)" : "Total Score (8.0)",
+      lang === "zh" ? "第一句作答" : "S1 Student Submission",
+      lang === "zh" ? "第二句作答" : "S2 Student Submission",
+      lang === "zh" ? "語法障礙重點" : "Major Issues / Feedback"
+    ];
+
+    const rows = students.map((s) => {
+      let statusStr = "";
+      if (s.status === "absent") {
+        statusStr = lang === "zh" ? "缺席" : "Absent";
+      } else if (s.status === "graded") {
+        statusStr = lang === "zh" ? "已批改" : "Graded";
+      } else {
+        statusStr = lang === "zh" ? "未批改" : "Pending";
       }
-    };
-    triggerDefaultAnalysis();
-  }, []);
+
+      return [
+        s.seatNumber,
+        statusStr,
+        s.status === "graded" && s.score1 !== undefined ? s.score1.toFixed(1) : "",
+        s.status === "graded" && s.score2 !== undefined ? s.score2.toFixed(1) : "",
+        s.status === "graded" && s.totalScore !== undefined ? s.totalScore.toFixed(1) : "",
+        s.ocrSentence1 || "",
+        s.ocrSentence2 || "",
+        s.majorIssues || ""
+      ];
+    });
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => 
+        row.map(val => {
+          const cleanVal = typeof val === "string" ? val.replace(/"/g, '""').replace(/\n/g, ' ') : val;
+          return `"${cleanVal}"`;
+        }).join(",")
+      )
+    ].join("\n");
+
+    // Add \ufeff BOM for Microsoft Excel traditional Chinese character rendering correctness
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `GSAT_Grader_Class_Scores_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 selection:bg-teal-500 selection:text-white flex flex-col font-sans">
@@ -216,24 +248,6 @@ export default function App() {
       {/* Main Container Workspace */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 space-y-5">
         
-        {/* Academic Introductory Box banner */}
-        <div className="bg-gradient-to-r from-slate-900 via-slate-950 to-teal-950 text-white p-5 rounded-2xl border border-teal-500/10 relative overflow-hidden shadow-md">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1.5">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-teal-400/10 border border-teal-400/20 text-teal-300 text-[10px] font-bold rounded-full tracking-wider">
-                <Sparkles className="w-2.5 h-2.5 text-amber-400" /> {getTranslation("bannerBadge", lang)}
-              </div>
-              <h2 className="text-lg md:text-xl font-extrabold tracking-tight">
-                {getTranslation("bannerTitle", lang)}
-              </h2>
-              <p className="text-[11px] md:text-xs text-slate-300 leading-relaxed max-w-3xl">
-                {getTranslation("bannerDesc", lang)}
-              </p>
-            </div>
-          </div>
-        </div>
-
         {/* MASTER COMPACT PROMPT BOX (Accordion) */}
         <section className="bg-white rounded-xl border border-slate-200 shadow-3xs overflow-hidden transition-all duration-200">
           <div 
@@ -247,10 +261,12 @@ export default function App() {
                   {lang === "zh" ? "📖 當前翻譯題及常模設定：" : lang === "en" ? "📖 Active Prompts & Norms:" : "📖 當前翻譯題及設定 (Active Prompt):"}
                 </span>
                 <span className="text-slate-500 font-mono ml-1.5 bg-slate-200/60 px-1.5 py-0.5 rounded text-[10px]">
-                  {promptAnalysis ? "Parsed / 已連載" : "Default / 載入中"}
+                  {promptAnalysis ? "Parsed / 已設定" : "Pending / 待設定"}
                 </span>
                 <span className="text-slate-600 font-medium ml-2 text-[11px] truncate hidden md:inline">
-                  {DEMO_PROMPTS[0].sentence1Chinese.slice(0, 15)}... & {DEMO_PROMPTS[0].sentence2Chinese.slice(0, 15)}...
+                  {promptAnalysis 
+                    ? `${promptAnalysis.sentence1Chinese.slice(0, 15)}... & ${promptAnalysis.sentence2Chinese.slice(0, 15)}...`
+                    : "請輸入並設定您要批改的中文句型常模"}
                 </span>
               </div>
             </div>
@@ -289,7 +305,7 @@ export default function App() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           
           {/* LEFT SIDEBAR PANEL (Seat Layout Grid & Presence - width: 4/12) */}
-          <div className="lg:col-span-4 lg:sticky lg:top-18 space-y-3">
+          <div className={`lg:col-span-4 lg:sticky lg:top-18 space-y-3 ${activeSeat !== null ? "hidden lg:block" : ""}`}>
             <SeatLayout
               students={students}
               activeSeat={activeSeat}
@@ -461,13 +477,22 @@ export default function App() {
                           </div>
                         </div>
                         {students.filter(s => s.status === "graded").length > 0 && (
-                          <button 
-                            onClick={() => window.print()}
-                            className="bg-slate-800 hover:bg-slate-750 text-white border border-slate-700 text-[10px] font-bold py-1 px-2.5 rounded flex items-center gap-1 cursor-pointer transition-colors"
-                          >
-                            <FileDown className="w-3 h-3" />
-                            <span>{lang === "zh" ? "列印學術報表 (Print)" : "Print Transcript"}</span>
-                          </button>
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={handleExportExcel}
+                              className="bg-emerald-700 hover:bg-emerald-650 text-white border border-emerald-600 text-[10px] font-bold py-1 px-2.5 rounded flex items-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <FileSpreadsheet className="w-3 h-3 text-emerald-100" />
+                              <span>{lang === "zh" ? "匯出 Excel 檔 (CSV)" : "Export Excel (CSV)"}</span>
+                            </button>
+                            <button 
+                              onClick={() => window.print()}
+                              className="bg-slate-800 hover:bg-slate-750 text-white border border-slate-700 text-[10px] font-bold py-1 px-2.5 rounded flex items-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <FileDown className="w-3 h-3" />
+                              <span>{lang === "zh" ? "列印學術報表 (Print)" : "Print Transcript"}</span>
+                            </button>
+                          </div>
                         )}
                       </div>
 
