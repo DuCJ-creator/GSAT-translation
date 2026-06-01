@@ -1,10 +1,12 @@
 import express from "express";
+import path from "path";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 const app = express();
+const PORT = 3000;
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ limit: '15mb', extended: true }));
@@ -99,7 +101,7 @@ const FALLBACK_ANALYSES: Record<string, any> = {
       vocabulary: [
         { word: "感到焦慮", translation: "feel anxious / feel anxiety", notes: "anxious 為形容詞，配 feel 非常合適；若寫 feel anxiety 則為名詞用法。" },
         { word: "迷惘", translation: "lost / confused / bewildered", notes: "lost 表迷失方向或徬徨；confused 表困惑不解。" },
-        { word: "選擇大學學系", translation: "choosing a university department / major", notes: "department 指學系，major 指主修課系（兩者在台灣高中大考皆屬佳作辭彙）。" }
+        { word: "選擇大學學系", translation: "choosing a university department / major", notes: "department 指學系，major 指主修課系。" }
       ],
       keys: [
         "時間副詞子句中 choose/picking 應使用現在分詞形式或主動時態。",
@@ -112,12 +114,12 @@ const FALLBACK_ANALYSES: Record<string, any> = {
         "Modal verbs + make + comparative modification (make a more appropriate / better decision)"
       ],
       vocabulary: [
-        { word: "自我探索", translation: "self-exploration / self-discovery", notes: "exploration 為探索，符合課綱詞彙。避免錯拼為 self explorer（此為探索者）。" },
-        { word: "諮詢專家", translation: "consulting experts / talking to specialists", notes: "consult 為及物動詞，其後直接加上對象；若用 consult with 意指商討。" },
+        { word: "自我探索", translation: "self-exploration / self-discovery", notes: "exploration 為探索，符合課綱詞彙。避免錯拼為 self explorer。" },
+        { word: "諮詢專家", translation: "consulting experts / talking to specialists", notes: "consult 為及物動詞，其後直接加上對象。" },
         { word: "作出合適的決定", translation: "make appropriate decisions / make more suitable choices", notes: "固定搭配詞 make decisions（做決定），搭配形容詞 appropriate 或 suitable。" }
       ],
       keys: [
-        "然而之轉折語 (However, / Nonetheless,) 在句首需搭配逗號，單獨出現不能作連接詞連接兩個主句（除非用分號）。",
+        "然而之轉折語 (However, / Nonetheless,) 在句首需搭配逗號。",
         "專家應使用複數型 (experts) 表泛指。"
       ]
     },
@@ -164,7 +166,7 @@ const FALLBACK_ANALYSES: Record<string, any> = {
       vocabulary: [
         { word: "採取具體行動", translation: "take concrete actions / take practical steps", notes: "action 可數或不可數；concrete 表示具體實在的（非抽象）。" },
         { word: "確保", translation: "ensure / secure / guarantee", notes: "ensure 為後接賓語的最合適及物動詞。" },
-        { word: "糧食供應的穩定", translation: "the stability of food supply", notes: "food supply（糧食供應）可使用單數泛指，而 stability 為名詞表示穩定程度。" }
+        { word: "糧食供應的穩定", translation: "the stability of food supply", notes: "food supply（糧食供應）可使用單數泛指。" }
       ],
       keys: [
         "不定詞 to (+ V) 表示目的（以確保...）。",
@@ -196,7 +198,7 @@ const FALLBACK_ANALYSES: Record<string, any> = {
         "Comparative adjective + than ever / than in the past (比以往更加困難)"
       ],
       vocabulary: [
-        { word: "在社群媒體時代", translation: "In the era of social media / In the age of social networks", notes: "era/age 均可表時代，注意須與冠詞 the 並用型態。" },
+        { word: "在社群媒體時代", translation: "In the era of social media / In the age of social networks", notes: "era/age 均可表時代，注意與 strong/the 搭配。" },
         { word: "保護個人隱私", translation: "protecting personal privacy", notes: "保護可作動名詞主詞 Protecting...；privacy 為不可數名詞。" },
         { word: "比以往", translation: "than ever / than before", notes: "用於比較級的經典副詞修飾詞。" }
       ],
@@ -211,12 +213,12 @@ const FALLBACK_ANALYSES: Record<string, any> = {
         "S should remain highly alert / stay vigilant when V-ing (應該在做...時保持高度警覺)"
       ],
       vocabulary: [
-        { word: "網路分享資訊", translation: "sharing personal information online", notes: "online 在此作地方副詞，不須加任何介系詞。" },
+        { word: "網路分享資訊", translation: "sharing personal information online", notes: "online 在此作地方副詞，不虛加任何介系詞。" },
         { word: "使用者", translation: "users", notes: "泛指所有使用者，應使用複數型。" },
         { word: "保持高度警覺", translation: "remain highly alert / stay vigilant / watch out", notes: "vigilant (adj.) 或是 alert (adj.) 與靜態動詞 stay / remain / keep 互配。" }
       ],
       keys: [
-        "在網路上：online 單字作副詞直接置於句尾（或修飾動詞），不需說 on the internet sharing，通常簡寫為 sharing info online 即可。",
+        "在網路上：online 單字作副詞直接置於句尾（或修飾動詞），通常簡寫為 sharing info online 即可。",
         "保持警覺之動詞搭配：stay/remain alert，高度的可修飾為 highly/extremely。"
       ]
     },
@@ -232,8 +234,8 @@ const FALLBACK_ANALYSES: Record<string, any> = {
     ],
     overallFulfillmentKeys: [
       "主詞結構：保護個人隱私是此句核心主體，採「動名詞 (Protecting...) 當主詞」或是虛主詞「It's more difficult... to protect...」為高分手筆。",
-      "「網路上的分享」之「網路上」以副詞 online 置於後面修士最為道地流暢。",
-      "「保持警覺」宜用 stay / remain alert 或 stay / remain vigilant，避免誤用 maintain warning 這種漢式英文。"
+      "「網路上的分享」之「網路上」以副詞 online 置於後面最為道地流暢。",
+      "「保持警覺」宜用 stay / remain alert 或 stay / remain vigilant。"
     ]
   }
 };
@@ -436,7 +438,7 @@ Provide key structures, vocabulary, 3 reference translations each, and overall g
   }
 });
 
-// ── API: Grade student submission ────────────────────────────
+// ── API: Grade student submission with Rubric ────────────────
 app.post("/api/grade-student", async (req, res) => {
   try {
     const { seatNumber, image, manualText, promptAnalysis } = req.body;
@@ -444,20 +446,20 @@ app.post("/api/grade-student", async (req, res) => {
       return res.status(400).json({ error: "Missing prompt analysis context." });
     }
 
-    const gradingPrompt = `
-You are a professional English teacher evaluating a Taiwanese high school student's GSAT translation.
+    const gradingSystemPrompt = `
+You are an elite English teacher evaluating a Taiwanese high school student's translation for the GSAT under these strict grading guidelines:
 
-Chinese Sentence 1: "${promptAnalysis.sentence1Chinese}"
-Chinese Sentence 2: "${promptAnalysis.sentence2Chinese}"
-Reference Answers S1: ${JSON.stringify(promptAnalysis.referenceTranslations1)}
-Reference Answers S2: ${JSON.stringify(promptAnalysis.referenceTranslations2)}
+### GRADING AND DEDUCTIONS HANDBOOK:
+1. SCORE LIMITS: Each sentence has a maximum of 4.0 points (total 8.0). Score deductions should be in steps of 0.5 points. Minimum score per sentence is 0.0.
+2. DEDUCTION STANDARD: Usually, deduct exactly 0.5 points for each error (such as grammatical errors, spelling mistakes, inappropriate word choice, omissions, or unclear phrasing) in a sentence.
+3. ACCUMULATION OF ERRORS: If a sentence is severely incoherent, has a chaotic structure, or is extremely messy, grade it based on overall impression. Do not double-penalize minor things; deduct more heavily overall (e.g., scoring 0.5, 1.0, or 1.5 total for the sentence) based on overall incoherence.
+4. NO REPEATED PENALTIES: If the same spelling, vocabulary, or grammatical mistake occurs multiple times within the same sentence/question, only deduct points ONCE for that specific mistake.
+5. KEYS TO SCORING:
+   - Correct Structure: Ensure sentences have complete subjects and verbs, and tenses (e.g., past tense, present perfect tense, active vs passive voice) are 100% accurate.
+   - Vocabulary & Spelling: Pay close attention to spelling. Ensure vocabulary parts of speech match requirements of the sentence pattern perfectly.
+   - Fluency & Clarity: Avoid word-for-word translation (Chinglish) at all costs. The translated version should align with natural English idiomatic usage.
 
-Instructions:
-1. If image provided, OCR the handwritten text for S1 and S2 exactly (preserve typos/errors).
-   If no image, evaluate this typed text: "${manualText || ''}".
-   Detect seat number if visible (e.g. "座號 12").
-2. Each sentence = 4.0 pts max (total 8.0). Deduct 0.5 per error (spelling, grammar, word choice, structure).
-3. Return raw JSON:
+Return a raw JSON object with this shape:
 {
   "detectedSeatNumber": number | null,
   "ocrSentence1": string,
@@ -472,12 +474,28 @@ Instructions:
   "improvedVersion": string,
   "majorIssues": string
 }
-Explain all deductions in Traditional Chinese.`;
+
+Instructions:
+- All feedbacks, explanations of deductions, and majorIssues summaries MUST be written in natural Traditional Chinese (Taiwan, 繁體中文).
+- Be incredibly professional, objective, and clear so an English teacher instantly understands the deduction rationale.
+`;
+
+    const gradingPrompt = `
+Chinese Sentence 1: "${promptAnalysis.sentence1Chinese}"
+Chinese Sentence 2: "${promptAnalysis.sentence2Chinese}"
+Reference Answers S1: ${JSON.stringify(promptAnalysis.referenceTranslations1)}
+Reference Answers S2: ${JSON.stringify(promptAnalysis.referenceTranslations2)}
+
+Task:
+- If an image is provided as part of OCR, transcribe the handwriting for Sentence 1 and Sentence 2 with absolute preservation of spelling, grammar, and typos, and detect the seat number if visible.
+- If no image is provided, evaluate this typed text directly: "${manualText || ''}". Split it into S1 and S2, then fill "ocrSentence1" and "ocrSentence2" accordingly.
+- Score both S1 and S2 under the rubrics rules specified in your system instructions.
+`;
 
     if (hasOpenAIKey()) {
       try {
         const data = await callOpenAIMultimodal(
-          "You are an expert GSAT English translation assessor. Return results in Traditional Chinese.",
+          gradingSystemPrompt,
           gradingPrompt,
           image
         );
@@ -503,7 +521,7 @@ Explain all deductions in Traditional Chinese.`;
       model: "gemini-2.0-flash",
       contents: { parts },
       config: {
-        systemInstruction: "You are an expert GSAT English translation assessor. Return results in Traditional Chinese.",
+        systemInstruction: gradingSystemPrompt,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -533,5 +551,35 @@ Explain all deductions in Traditional Chinese.`;
     return res.status(500).json({ error: error?.message || "Internal Server Error" });
   }
 });
+
+// Setup Vite Dev Server / Static Asset Handler
+async function startServer() {
+  if (process.env.NODE_ENV !== "production") {
+    console.log("Starting server in DEVELOPMENT mode with Vite Middleware...");
+    const { createServer: createViteServer } = await import("vite");
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    console.log("Starting server in PRODUCTION mode with compiled assets...");
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+
+  if (!process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Express API + Vite Asset Gateway is online at http://0.0.0.0:${PORT}`);
+    });
+  }
+}
+
+if (!process.env.VERCEL) {
+  startServer();
+}
 
 export default app;
