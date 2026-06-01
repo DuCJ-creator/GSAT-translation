@@ -18,12 +18,14 @@ let aiClient: GoogleGenAI | null = null;
 
 // Helper to check if API key exists
 function hasGeminiKey(): boolean {
-  return typeof process.env.GEMINI_API_KEY === "string" && process.env.GEMINI_API_KEY.trim().length > 0;
+  const k = process.env.GEMINI_API_KEY;
+  return typeof k === "string" && k.trim().length > 0 && k !== "undefined" && k !== "null" && !k.startsWith("MY_");
 }
 
 // Helper to check if OpenAI API key exists
 function hasOpenAIKey(): boolean {
-  return typeof process.env.OPENAI_API_KEY === "string" && process.env.OPENAI_API_KEY.trim().length > 0;
+  const k = process.env.OPENAI_API_KEY;
+  return typeof k === "string" && k.trim().length > 0 && k !== "undefined" && k !== "null" && !k.startsWith("MY_");
 }
 
 // Global/built-in fetch completion helper for OpenAI Chat
