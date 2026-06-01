@@ -770,7 +770,7 @@ app.post("/api/analyze-prompt", async (req, res) => {
     }
 
     const ai = getGeminiClient();
-    const model = "gemini-3.5-flash";
+    const model = "gemini-2.0-flash";
 
     const promptText = `Analyze these two contextually or logically connected Chinese sentences for an English translation exercise (suitable for GSAT / 高考 style).
     Chinese Sentence 1: "${sentence1}"
