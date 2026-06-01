@@ -32,7 +32,8 @@ export const TRANSLATIONS: TranslationDictionary = {
   },
   "navSubtitle": {
     zh: "Designed by Shirley Du",
-    en: "Designed by Shirley Du"
+    en: "Designed by Shirley Du",
+    bi: "Designed by Shirley Du"
   },
   "navEngine": {
     zh: "學術評分：4.0 分扣分制",
