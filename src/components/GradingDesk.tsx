@@ -522,7 +522,7 @@ export default function GradingDesk({
             <Award className="w-12 h-12 stroke-1 mb-3 text-slate-300 animate-pulse" />
             <p className="text-sm font-bold text-slate-700">批改桌尚無當前評分報表</p>
             <p className="text-xs text-slate-500 max-w-sm mt-1 leading-normal">
-              請左側完成當前 # {activeSeat} 號學生的作業上傳或貼上有關句子，並點選下方<strong>「送出評分」</strong>按鈕。Gemini 專家級 AI 將隨即進行線上比對並自動分析學術反饋。
+              請左側完成當前 # {activeSeat} 號學生的作業上傳或貼上有關句子，並點選下方<strong>「送出評分」</strong>按鈕。專家級 AI 將隨即進行線上比對並自動分析學術反饋。
             </p>
           </div>
         )}
