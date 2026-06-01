@@ -11,20 +11,10 @@ interface PromptCanvasProps {
 }
 
 export default function PromptCanvas({ onAnalysisGenerated, currentAnalysis, lang = "bilingual" }: PromptCanvasProps) {
-  const [selectedPreset, setSelectedPreset] = useState<string>("univ");
-  const [sentence1, setSentence1] = useState<string>(DEMO_PROMPTS[0].sentence1Chinese);
-  const [sentence2, setSentence2] = useState<string>(DEMO_PROMPTS[0].sentence2Chinese);
+  const [sentence1, setSentence1] = useState<string>("");
+  const [sentence2, setSentence2] = useState<string>("");
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-
-  const handleSelectPreset = (presetId: string) => {
-    setSelectedPreset(presetId);
-    const preset = DEMO_PROMPTS.find(p => p.id === presetId);
-    if (preset) {
-      setSentence1(preset.sentence1Chinese);
-      setSentence2(preset.sentence2Chinese);
-    }
-  };
 
   const handleAnalyze = async () => {
     if (!sentence1.trim() || !sentence2.trim()) {
@@ -71,29 +61,6 @@ export default function PromptCanvas({ onAnalysisGenerated, currentAnalysis, lan
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Presets Grid */}
-        <div>
-          <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-            {lang === "zh" ? "選擇預設翻譯題庫：" : lang === "en" ? "Select Preset Translation Prompts:" : "選擇預設翻譯題庫：(Preset Prompts)"}
-          </label>
-          <div className="grid grid-cols-3 gap-1.5">
-            {DEMO_PROMPTS.map((prompt) => (
-              <button
-                key={prompt.id}
-                onClick={() => handleSelectPreset(prompt.id)}
-                className={`py-1.5 px-2.5 rounded-md text-xs font-medium border text-left transition-all ${
-                  selectedPreset === prompt.id
-                    ? "bg-emerald-50 border-emerald-400 text-emerald-800 shadow-2xs"
-                    : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <div className="font-semibold truncate">{prompt.tag.split(" ")[0]}</div>
-                <div className="text-[9px] text-slate-400 truncate mt-0.5">{prompt.tag.split(" ")[1] || ""}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Input Textboxes */}
         <div className="space-y-3">
           <div>
@@ -107,7 +74,6 @@ export default function PromptCanvas({ onAnalysisGenerated, currentAnalysis, lan
               value={sentence1}
               onChange={(e) => {
                 setSentence1(e.target.value);
-                setSelectedPreset("custom");
               }}
               rows={2}
               className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-slate-50/50"
@@ -126,10 +92,9 @@ export default function PromptCanvas({ onAnalysisGenerated, currentAnalysis, lan
               value={sentence2}
               onChange={(e) => {
                 setSentence2(e.target.value);
-                setSelectedPreset("custom");
               }}
               rows={2}
-              className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-slate-50/50"
+              className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-outline focus:ring-1 focus:ring-emerald-500 bg-slate-50/50"
               placeholder={lang === "en" ? "Enter Chinese Sentence 2" : "例如：然而，透過自我探索和諮詢專家，他們能做出更合適的決定。"}
             />
           </div>
