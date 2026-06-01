@@ -42,6 +42,15 @@ export default function BatchGradingDesk({
 
   // States for tab-files
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; dataUrl: string }>>([]);
+
+  // States for tab-simulator interactive booklet uploading
+  interface SimFile {
+    id: string;
+    name: string;
+    seatNumber: number;
+  }
+  const [simFiles, setSimFiles] = useState<SimFile[]>([]);
+  const simFileInputRef = useRef<HTMLInputElement>(null);
   
   // States for tab-text (multi-student textarea)
   const [combinedText, setCombinedText] = useState<string>("");
@@ -162,7 +171,7 @@ export default function BatchGradingDesk({
         // Trigger request in background
         (async (item) => {
           try {
-            addLog(`🤖 正在與 Gemini 連線評分 座號 #${item.seatNumber}`);
+            addLog(`🤖 正在與 AI 連線評分 座號 #${item.seatNumber}`);
             const result = await gradeSingleStudent(
               item.seatNumber,
               item.image || null,
@@ -356,20 +365,71 @@ export default function BatchGradingDesk({
     runBatchPipeline(items);
   };
 
-  // Tab 3: Automatic Class Simulator (Extremely powerful for immediate review!)
+  // Tab 3: Automatic Class Simulator Booklet Uploading & Ordering Mechanics
+  const handleSimFilesUpload = (files: FileList) => {
+    const fileArray = Array.from(files);
+    const newSimFiles: SimFile[] = [];
+
+    fileArray.forEach((file, index) => {
+      const isPdf = file.name.toLowerCase().endsWith(".pdf");
+      if (isPdf) {
+        // If they upload a compiled multi-page PDF, simulate page-by-page mapping in seat sequence
+        presentStudents.forEach((student, sIdx) => {
+          newSimFiles.push({
+            id: `${file.name}-page-${sIdx + 1}`,
+            name: `${file.name} (學籍考卷頁次 ${sIdx + 1})`,
+            seatNumber: student.seatNumber
+          });
+        });
+      } else {
+        // Mapping separate file to corresponding seat (if any) or sequentially
+        const assignedStudent = presentStudents[index % presentStudents.length];
+        newSimFiles.push({
+          id: `${file.name}-${index}`,
+          name: file.name,
+          seatNumber: assignedStudent ? assignedStudent.seatNumber : index + 1
+        });
+      }
+    });
+
+    setSimFiles(newSimFiles);
+    setLocalError(null);
+    addLog(`📂 成功裝載全班作業影像/PDF 模組：共載入 ${newSimFiles.length} 頁獨立考卷`);
+  };
+
+  const handleGenerateSimBundle = () => {
+    const newSimFiles: SimFile[] = presentStudents.map((student, idx) => ({
+      id: `sim-page-${student.seatNumber}`,
+      name: `Compiled_Class_Exams_Seat_${student.seatNumber.toString().padStart(2, "0")}.pdf`,
+      seatNumber: student.seatNumber
+    }));
+    setSimFiles(newSimFiles);
+    setLocalError(null);
+    addLog(`✨ 已自動生成全班整合 PDF 手寫考卷組（共 ${presentStudents.length} 頁學生的裝頁卷）`);
+  };
+
+  const handleUpdateSimSeat = (fileId: string, newSeat: number) => {
+    setSimFiles(prev => prev.map(f => f.id === fileId ? { ...f, seatNumber: newSeat } : f));
+  };
+
   const startSimulatorBatchGrading = () => {
-    const items: QueuedStudent[] = presentStudents.map(student => {
+    if (simFiles.length === 0) {
+      setLocalError("請先上傳 PDF 整疊考卷或選擇一鍵生成模擬裝卷。");
+      return;
+    }
+
+    const items: QueuedStudent[] = simFiles.map(f => {
       // Find matches in DEMO_STUDENT_SUBMISSIONS, fallback to generic
-      const foundDemo = DEMO_STUDENT_SUBMISSIONS.find(d => d.seatNumber === student.seatNumber);
+      const foundDemo = DEMO_STUDENT_SUBMISSIONS.find(d => d.seatNumber === f.seatNumber);
       const textInput = foundDemo 
         ? foundDemo.textInput 
-        : `Many students feel anxious when picking their major.\nBut through consulting expert advisers they can make appropriate decisions. (Seat #${student.seatNumber} system generated response)`;
+        : `Many students feel anxious when picking their major.\nBut through consulting expert advisers they can make appropriate decisions. (Seat #${f.seatNumber} student Response)`;
       
-      const svgUri = generateHandwritingSvg(student.seatNumber, textInput);
+      const svgUri = generateHandwritingSvg(f.seatNumber, textInput);
       
       return {
-        seatNumber: student.seatNumber,
-        fileName: `demo_seat_${student.seatNumber}_scan.svg`,
+        seatNumber: f.seatNumber,
+        fileName: f.name,
         image: svgUri,
         status: "idle" as const
       };
@@ -381,6 +441,7 @@ export default function BatchGradingDesk({
   // Clear states
   const resetBatchGrading = () => {
     setUploadedFiles([]);
+    setSimFiles([]);
     setProcessQueue([]);
     setLogs([]);
     setLocalError(null);
@@ -574,45 +635,146 @@ export default function BatchGradingDesk({
 
           {/* Tab Content C: One-Click Simulated Entire Class (Default) */}
           {activeTab === "simulator" && (
-            <div className="space-y-3.5">
-              <span className="text-[10px] uppercase font-bold text-amber-600 tracking-wider flex items-center gap-1 bg-amber-50 border border-amber-200/50 px-2 py-0.5 rounded w-max">
-                <Sparkles className="w-3 h-3 text-amber-500" /> RECOMMENDED TESTING MODE
+            <div className="space-y-4">
+              <span className="text-[10px] uppercase font-bold text-teal-600 tracking-wider flex items-center gap-1 bg-teal-50 border border-teal-200/50 px-2 py-0.5 rounded w-max">
+                <Sparkles className="w-3 h-3 text-teal-500 animate-pulse" /> CLASS EVALUATION SANDBOX
               </span>
               <div>
                 <h5 className="text-xs font-bold text-slate-800">一鍵智能模擬批改全班 (Simulated Batch evaluation)</h5>
                 <p className="text-[11px] text-slate-500 leading-relaxed mt-1">
-                  平台最引以為傲的即時展示工具！系統會自動為目前所有<b>出席 (勾選) 學生</b>動態配置各具差異、含真實單字文法錯誤的手寫答卷，並啟動一個高可視性的併發作業處理流程。
+                  依實際批改情境：先上載全班整疊手寫 PDF 考卷檔或多份影像檔，系統隨即自動配置至對應座號，並允許您人工校正分派狀態。
                 </p>
               </div>
 
-              <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 space-y-1.5 text-[11.5px] text-slate-600">
-                <div className="flex justify-between font-medium">
-                  <span>待執行人數：</span>
-                  <span className="text-slate-900 font-bold font-mono">{presentStudents.length} 人</span>
-                </div>
-                <div className="flex justify-between font-medium">
-                  <span>手寫筆跡影像等級：</span>
-                  <span className="text-emerald-600 font-bold">4種寫作水平隨機調配</span>
-                </div>
-                <div className="flex justify-between font-medium">
-                  <span>最大評分深度：</span>
-                  <span className="text-rose-600 font-bold">4.0 分扣分學術常模細項</span>
-                </div>
-              </div>
+              {simFiles.length === 0 ? (
+                <div className="space-y-3">
+                  <div
+                    onDragEnter={handleDrag}
+                    onDragOver={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDragActive(false);
+                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        handleSimFilesUpload(e.dataTransfer.files);
+                      }
+                    }}
+                    onClick={() => simFileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
+                      dragActive
+                        ? "border-teal-500 bg-teal-50/50 text-teal-700"
+                        : "border-slate-300 hover:border-slate-400 bg-slate-50/50 text-slate-500"
+                    }`}
+                  >
+                    <Upload className="w-7 h-7 mx-auto mb-2 text-slate-300" />
+                    <p className="text-xs font-bold text-slate-700">選擇或拖曳整疊作業 PDF / 影像至此</p>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      支援單一 PDF（依出席人數自動拆頁）或多張答題拍照檔
+                    </p>
+                    <input
+                      ref={simFileInputRef}
+                      type="file"
+                      accept=".pdf,image/*"
+                      multiple
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          handleSimFilesUpload(e.target.files);
+                        }
+                      }}
+                      className="hidden"
+                    />
+                  </div>
 
-              <button
-                type="button"
-                onClick={startSimulatorBatchGrading}
-                disabled={isProcessing || presentStudents.length === 0}
-                className={`w-full py-2.5 px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-                  isProcessing || presentStudents.length === 0
-                    ? "bg-slate-100 text-slate-400 cursor-not-allowed border"
-                    : "bg-teal-600 hover:bg-teal-700 text-white shadow-md active:scale-98"
-                }`}
-              >
-                <Sparkles className="w-4 h-4 text-amber-300" />
-                啟動一鍵全班手寫模擬批改
-              </button>
+                  <div className="text-center py-1">
+                    <span className="text-[10px] text-slate-400 font-mono">— OR / 或直接模擬測試 —</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleGenerateSimBundle}
+                    disabled={presentStudents.length === 0}
+                    className="w-full py-2 px-3 border border-dashed border-teal-500/40 hover:border-teal-500/80 bg-teal-500/5 hover:bg-teal-500/10 text-teal-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all text-center"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    沒備妥實體 PDF？一鍵生成模擬全班 20 位學生卷裝卷
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Loaded Simulation Files and Seat Allocations */}
+                  <div className="border border-slate-200 rounded-lg p-3 bg-slate-50 space-y-2.5 max-h-[280px] overflow-y-auto">
+                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 border-b border-slate-250/60 pb-1.5">
+                      <span className="flex items-center gap-1">
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                        已封裝全班 {simFiles.length} 份考卷檔案
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSimFiles([])}
+                        className="text-rose-500 hover:text-rose-600 flex items-center gap-0.5 font-bold cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" /> 移除重新上傳
+                      </button>
+                    </div>
+
+                    <p className="text-[10px] text-slate-400 leading-relaxed">
+                      💡 備忘：若部分學生的考卷排序與座號順序不符，您可以<b>點選下拉選單手動校正座號對應</b>：
+                    </p>
+
+                    <div className="divide-y divide-slate-150 space-y-1.5">
+                      {simFiles.map((f, i) => (
+                        <div key={f.id} className="pt-2 pb-1 text-xs font-sans text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                          <span className="truncate max-w-[200px] font-mono text-slate-500" title={f.name}>
+                            📄 {f.name}
+                          </span>
+                          
+                          {/* Fine-Tuning Dropdown Selector */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className="text-[10px] text-teal-600 font-bold">對應 ➔</span>
+                            <select
+                              value={f.seatNumber}
+                              onChange={(e) => handleUpdateSimSeat(f.id, parseInt(e.target.value, 10))}
+                              className="text-[11px] bg-white border border-slate-300 rounded-md px-1.5 py-0.5 font-bold text-slate-800 focus:ring-1 focus:ring-teal-500"
+                            >
+                              {presentStudents.map(student => (
+                                <option key={student.seatNumber} value={student.seatNumber}>
+                                  座號 #{student.seatNumber.toString().padStart(2, "0")} 學生
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 space-y-1 text-[11px] text-slate-600">
+                    <div className="flex justify-between font-medium">
+                      <span>準備批改生出席人數：</span>
+                      <span className="text-slate-900 font-bold font-mono">{presentStudents.length} 人</span>
+                    </div>
+                    <div className="flex justify-between font-medium">
+                      <span>模擬大考標準準則：</span>
+                      <span className="text-emerald-600 font-bold">4.0 非選扣分計分法</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={startSimulatorBatchGrading}
+                    disabled={isProcessing || presentStudents.length === 0}
+                    className={`w-full py-2.5 px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm ${
+                      isProcessing || presentStudents.length === 0
+                        ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                        : "bg-teal-600 hover:bg-teal-700 text-white font-extrabold hover:shadow-md cursor-pointer transition-colors active:scale-98"
+                    }`}
+                  >
+                    <Play className="w-4 h-4 fill-current text-white animate-pulse" />
+                    確校無誤，啟動 AI 智能分派與高速批改
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -630,7 +792,7 @@ export default function BatchGradingDesk({
                   <span className="w-1.5 h-3 bg-teal-400 rounded-xs"></span>
                   即時評改串接佇列 (Pipeline Monitor)
                 </h5>
-                <p className="text-[10px] text-slate-400">顯示系統與 AWS/OCR/Gemini 連接點的即時回應狀態</p>
+                <p className="text-[10px] text-slate-400">顯示系統與 AWS/OCR/AI 連接點的即時回應狀態</p>
               </div>
 
               {processQueue.length > 0 && (
