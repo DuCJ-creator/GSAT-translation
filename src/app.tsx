@@ -228,6 +228,46 @@ export default function App() {
       {/* Main Container Workspace */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 space-y-5">
         
+        {/* UNIFIED BULK EXPORT WORKSPACE BAR (High Visibility) */}
+        {students.filter(s => s.status === "graded").length > 0 && (
+          <div className="bg-gradient-to-r from-emerald-950 to-slate-900 border border-emerald-500/35 rounded-xl p-4 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-teal-500/10 border border-teal-500/30 flex items-center justify-center shrink-0">
+                <Sparkles className="w-5 h-5 text-teal-400 animate-pulse" />
+              </div>
+              <div className="text-left">
+                <h4 className="font-bold text-xs text-teal-400 uppercase tracking-widest">
+                  {lang === "zh" ? "大考手寫智能校閱系統 · 完成成果" : "AI GRADING COMPLETED PROMPTS"}
+                </h4>
+                <p className="text-[11.5px] text-slate-300 font-medium leading-relaxed">
+                  {lang === "zh"
+                    ? `已成功評閱並產出 A4 紅筆糾錯與手寫糾偏考卷！目前全班已批改：${students.filter(s => s.status === "graded").length} 人 / 出席：${students.filter(s => s.status !== "absent").length} 人`
+                    : `High-resolution A4 reports are ready! Total graded: ${students.filter(s => s.status === "graded").length} / present: ${students.filter(s => s.status !== "absent").length}`}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 w-full md:w-auto justify-end flex-wrap shrink-0">
+              <button
+                onClick={handleExportRedInkReports}
+                className="flex-1 md:flex-none py-2 px-3.5 bg-rose-600 hover:bg-rose-550 border border-rose-500/40 text-[11px] font-black tracking-wide text-white rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.02] active:scale-98 transition-all"
+                title="匯出全班紅筆糾錯批註考卷至一完整 PDF"
+              >
+                <FileText className="w-4 h-4 text-rose-100" />
+                <span>{lang === "zh" ? "📥 匯出全班紅筆批註 PDF" : "Export Red Ink PDF (A4)"}</span>
+              </button>
+
+              <button
+                onClick={handleExportExcel}
+                className="flex-1 md:flex-none py-2 px-3.5 bg-emerald-750 hover:bg-emerald-700 border border-emerald-600/40 text-[11px] font-black tracking-wide text-white rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.02] active:scale-98 transition-all"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-100" />
+                <span>{lang === "zh" ? "📥 匯出成績單 CSV" : "Export Excel (CSV)"}</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* MASTER COMPACT PROMPT BOX (Accordion) */}
         <section className="bg-white rounded-xl border border-slate-200 shadow-3xs overflow-hidden transition-all duration-200">
           <div 
