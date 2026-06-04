@@ -887,6 +887,26 @@ export default function BatchGradingDesk({
                   ))}
                 </div>
 
+                {/* Highly visible Failures Breakdown Guide for Teachers */}
+                {processQueue.some(q => q.status === "failed") && (
+                  <div className="mt-3 space-y-2 bg-red-950/20 border border-red-900/40 rounded-xl p-3 text-[11px]">
+                    <div className="text-red-400 font-bold flex items-center gap-1.5 pb-1.5 border-b border-red-900/30">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                      <span>偵測到金鑰/網路批改異常 (Error Diagnosis)</span>
+                    </div>
+                    <div className="space-y-3 max-h-[200px] overflow-y-auto pr-1">
+                      {processQueue.filter(q => q.status === "failed").map((item) => (
+                        <div key={item.seatNumber} className="text-slate-300 leading-relaxed border-b border-red-900/20 pb-2 last:border-0 last:pb-0">
+                          <span className="font-bold text-red-300 font-mono"># {item.seatNumber.toString().padStart(2, "0")} 號學生的考卷：</span>
+                          <div className="mt-1 whitespace-pre-wrap text-slate-200 pl-2.5 border-l border-red-500/30">
+                            {item.errorMsg}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
               </div>
             ) : (
               <div className="py-8 text-center text-slate-500 bg-slate-950/30 border border-slate-950 rounded-lg">
