@@ -7,7 +7,6 @@ import GradingDesk from "./components/GradingDesk";
 import BatchGradingDesk from "./components/BatchGradingDesk";
 import ClassStats from "./components/ClassStats";
 import { LangType, getTranslation } from "./lib/translations";
-import { exportAnnotatedReportsPdf } from "./lib/pdfExporter";
 import { 
   Award, BookOpen, GraduationCap, Sparkles, 
   ChevronRight, Heart, FileDown, Layers, CheckSquare, 
@@ -195,8 +194,8 @@ export default function App() {
   };
 
   // Export beautiful red ink annotations reports for all graded sheets to PDF
-  const handleExportRedInkReports = async () => {
-    await exportAnnotatedReportsPdf(students, promptAnalysis, lang);
+  const handleExportRedInkReports = () => {
+    window.print();
   };
 
 
@@ -640,6 +639,216 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* ───── PRINT SECTION ───── */}
+      <div id="print-section" className="hidden print:block bg-white text-black p-0 m-0">
+        {students
+          .filter((s) => s.status === "graded")
+          .map((student) => {
+            return (
+              <div key={student.seatNumber} className="print-page border-b border-gray-200 pb-12 mb-12">
+                
+                {/* Header Title Grid */}
+                <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-6">
+                  <div>
+                    <h2 className="text-xl font-bold tracking-tight text-slate-900">
+                      中華民國大學學測 (GSAT) 英文寫作翻譯 · 智能紅筆對照與評鑑表
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1 font-mono">
+                      GSAT ENGLISH TRANSLATION INTELLIGENT FEEDBACK & SCORE SHEET
+                    </p>
+                    <p className="text-[11px] text-slate-600 mt-2">
+                      <strong>題目翻譯對照常模：</strong>
+                      第一句：{promptAnalysis?.sentence1Chinese || "許多學生在選擇大學學系時會感到焦慮與迷惘。"} | 
+                      第二句：{promptAnalysis?.sentence2Chinese || "然而，透過自我探索和諮詢專家，他們能做出更合適的決定。"}
+                    </p>
+                  </div>
+                  
+                  {/* Seat badge and Teacher grade ring */}
+                  <div className="text-right flex flex-col items-end">
+                    <div className="bg-slate-900 text-white font-mono font-bold text-sm px-3 py-1 rounded-md mb-2">
+                      座號 SEAT #{student.seatNumber}
+                    </div>
+                    {/* Circle Score Badge */}
+                    <div className="w-20 h-20 rounded-full border-4 border-red-500 flex flex-col items-center justify-center text-red-600">
+                      <span className="text-[9px] font-bold uppercase tracking-wider leading-none">Score</span>
+                      <span className="text-2xl font-black leading-none mt-1">{student.totalScore?.toFixed(1)}</span>
+                      <span className="text-[8px] font-bold text-red-400 border-t border-red-200 mt-1 pt-0.5 leading-none">/ 8.0 Pts</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Score Summary Grid */}
+                <div className="grid grid-cols-3 gap-4 bg-slate-50 border border-slate-200 p-3 rounded-lg mb-6">
+                  <div className="text-center border-r border-slate-200">
+                    <div className="text-[10px] text-slate-500 font-bold uppercase">第一句得分 (Sentence 1)</div>
+                    <div className="text-lg font-black text-slate-800">{student.score1?.toFixed(1)} / 4.0</div>
+                  </div>
+                  <div className="text-center border-r border-slate-200">
+                    <div className="text-[10px] text-slate-500 font-bold uppercase">第二句得分 (Sentence 2)</div>
+                    <div className="text-lg font-black text-slate-800">{student.score2?.toFixed(1)} / 4.0</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-[10px] text-slate-500 font-bold uppercase">瑕疵總扣分 (Deductions)</div>
+                    <div className="text-lg font-black text-red-600">
+                      -{Math.max(0, 8.0 - (student.totalScore || 0)).toFixed(1)} Pts
+                    </div>
+                  </div>
+                </div>
+
+                {/* Handwriting Image Scan Reference if present */}
+                {student.studentInputImage && (
+                  <div className="mb-6">
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest mb-2 border-l-2 border-slate-700 pl-2">
+                       學生原手寫考卷掃描 (Student Copy Scan Ref.)
+                    </h3>
+                    <div className="border border-slate-200 rounded-lg p-2 bg-[#fafaf9] max-h-[140px] flex items-center justify-center overflow-hidden">
+                      <img 
+                        src={student.studentInputImage} 
+                        alt={`Seat ${student.seatNumber} Handwriting`} 
+                        className="max-h-[120px] object-contain"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Sentence 1 Area */}
+                <div className="mb-6">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest mb-2 border-l-2 border-slate-700 pl-2">
+                     第一句細項批改 (Sentence 1 Red-Ink Resolution)
+                  </h3>
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-3">
+                    <div>
+                      <div className="text-[10px] text-slate-500 font-bold">學生翻譯 Transcription:</div>
+                      <div className="font-sans text-sm text-slate-800 italic mt-1 bg-white border border-slate-100 p-2 rounded">
+                        {student.ocrSentence1}
+                      </div>
+                    </div>
+
+                    {/* Table of errors */}
+                    {student.errors1 && student.errors1.length > 0 ? (
+                      <div>
+                        <div className="text-[10px] text-slate-500 font-bold mb-1">聯合理紅筆糾錯紀錄 (Red-Ink Marks):</div>
+                        <table className="w-full text-xs text-left border-collapse border border-slate-200 bg-white">
+                          <thead>
+                            <tr className="bg-slate-100 text-[10px] uppercase font-bold text-slate-700 border-b border-slate-200">
+                              <th className="py-1 px-2 border-r border-slate-200 w-1/6">類別 (Type)</th>
+                              <th className="py-1 px-2 border-r border-slate-200 w-2/6 text-red-600">原物瑕疵 (Error)</th>
+                              <th className="py-1 px-2 border-r border-slate-200 w-2/6 text-green-600">更正指引 (Correction)</th>
+                              <th className="py-1 px-2 border-r border-slate-200 w-1/12 text-center text-red-600">扣分</th>
+                              <th className="py-1 px-2">詳盡解析 (Taiwan Chinese Explanation)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {student.errors1.map((err, idx) => (
+                              <tr key={idx} className="border-b border-slate-100 last:border-b-0">
+                                <td className="py-1 px-2 border-r border-slate-200 font-semibold">{err.errorType}</td>
+                                <td className="py-1 px-2 border-r border-slate-200 font-mono text-red-600 bg-red-50/50 line-through">{err.originalSegment}</td>
+                                <td className="py-1 px-2 border-r border-slate-200 font-mono text-green-700 bg-green-50/50">{err.suggestedSegment}</td>
+                                <td className="py-1 px-2 border-r border-slate-200 text-center font-mono font-bold text-red-600">
+                                  {err.pointsDeducted > 0 ? `-${err.pointsDeducted}` : "0.0"}
+                                </td>
+                                <td className="py-1 px-2 text-[10.5px] text-slate-600 leading-normal">{err.explanation}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-green-700 font-medium italic mt-1">
+                        ✨ 完全正確：此句結構語意流暢且拼拼字 100% 精準，無觸犯任何扣分條例。
+                      </p>
+                    )}
+
+                    {student.feedback1 && (
+                      <div className="text-[11px] bg-white p-2 rounded border border-slate-100 text-slate-600 leading-relaxed font-sans">
+                        <strong>名師點評 (Feedback S1)：</strong>{student.feedback1}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Sentence 2 Area */}
+                <div className="mb-6">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest mb-2 border-l-2 border-slate-700 pl-2">
+                     第二句細項批改 (Sentence 2 Red-Ink Resolution)
+                  </h3>
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-3">
+                    <div>
+                      <div className="text-[10px] text-slate-500 font-bold">學生翻譯 Transcription:</div>
+                      <div className="font-sans text-sm text-slate-800 italic mt-1 bg-white border border-slate-100 p-2 rounded">
+                        {student.ocrSentence2}
+                      </div>
+                    </div>
+
+                    {/* Table of errors */}
+                    {student.errors2 && student.errors2.length > 0 ? (
+                      <div>
+                        <div className="text-[10px] text-slate-500 font-bold mb-1">聯合理紅筆糾錯紀錄 (Red-Ink Marks):</div>
+                        <table className="w-full text-xs text-left border-collapse border border-slate-200 bg-white">
+                          <thead>
+                            <tr className="bg-slate-100 text-[10px] uppercase font-bold text-slate-700 border-b border-slate-200">
+                              <th className="py-1 px-2 border-r border-slate-200 w-1/6">類別 (Type)</th>
+                              <th className="py-1 px-2 border-r border-slate-200 w-2/6 text-red-600">原物瑕疵 (Error)</th>
+                              <th className="py-1 px-2 border-r border-slate-200 w-2/6 text-green-600">更正指引 (Correction)</th>
+                              <th className="py-1 px-2 border-r border-slate-200 w-1/12 text-center text-red-600">扣分</th>
+                              <th className="py-1 px-2">詳盡解析 (Taiwan Chinese Explanation)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {student.errors2.map((err, idx) => (
+                              <tr key={idx} className="border-b border-slate-100 last:border-b-0">
+                                <td className="py-1 px-2 border-r border-slate-200 font-semibold">{err.errorType}</td>
+                                <td className="py-1 px-2 border-r border-slate-200 font-mono text-red-600 bg-red-50/50 line-through">{err.originalSegment}</td>
+                                <td className="py-1 px-2 border-r border-slate-200 font-mono text-green-700 bg-green-50/50">{err.suggestedSegment}</td>
+                                <td className="py-1 px-2 border-r border-slate-200 text-center font-mono font-bold text-red-600">
+                                  {err.pointsDeducted > 0 ? `-${err.pointsDeducted}` : "0.0"}
+                                </td>
+                                <td className="py-1 px-2 text-[10.5px] text-slate-600 leading-normal">{err.explanation}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-green-700 font-medium italic mt-1">
+                        ✨ 完全正確：此句結構語意流暢且拼拼字 100% 精準，無觸犯任何扣分條例。
+                      </p>
+                    )}
+
+                    {student.feedback2 && (
+                      <div className="text-[11px] bg-white p-2 rounded border border-slate-100 text-slate-600 leading-relaxed font-sans">
+                        <strong>名師點評 (Feedback S2)：</strong>{student.feedback2}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Diagnostic Wrapup */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="border border-slate-200 rounded-lg p-3 bg-slate-50">
+                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      大考常模範文精修對比 (High-Fidelity Model Essay)
+                    </h4>
+                    <p className="text-[11.5px] text-slate-750 leading-relaxed border-l-2 border-teal-500 pl-2 font-mono">
+                      {student.improvedVersion}
+                    </p>
+                  </div>
+                  <div className="border border-slate-200 rounded-lg p-3 bg-slate-50">
+                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      大考整合學術診斷 (Aesthetic Analysis & Diagnosis)
+                    </h4>
+                    <p className="text-[11px] text-slate-700 leading-relaxed italic">
+                      {student.majorIssues}
+                    </p>
+                  </div>
+                </div>
+
+              </div>
+            );
+          })}
+      </div>
 
     </div>
   );
