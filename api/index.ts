@@ -361,41 +361,92 @@ function getFallbackGrading(seatNumber: number, manualText: string, promptAnalys
   const parsedSeat = seatNumber || 1;
   const isUnivPrompt = promptAnalysis.sentence1Chinese && (promptAnalysis.sentence1Chinese.includes("大學") || promptAnalysis.sentence1Chinese.includes("學生"));
 
+  if (!cleanText) {
+    return {
+      detectedSeatNumber: parsedSeat,
+      ocrSentence1: "No translation submitted for Sentence 1.",
+      ocrSentence2: "No translation submitted for Sentence 2.",
+      score1: 0.0,
+      score2: 0.0,
+      totalScore: 0.0,
+      errors1: [],
+      errors2: [],
+      feedback1: "未偵測到作答字元 (No translation submitted).",
+      feedback2: "未偵測到作答字元 (No translation submitted).",
+      improvedVersion: (promptAnalysis.referenceTranslations1?.[0] || "") + " " + (promptAnalysis.referenceTranslations2?.[0] || ""),
+      majorIssues: "⚠️ 未偵測到作答文字。請輸入文字或提供清晰之考卷掃描圖像。"
+    };
+  }
+
   if (isUnivPrompt && parsedSeat >= 1) {
     const mappedSeat = ((parsedSeat - 1) % 5) + 1;
     const preset = FALLBACK_STUDENT_GRADINGS_UNIV[mappedSeat];
     if (preset) {
+      const parts = cleanText.split('\n').map(l => l.trim()).filter(Boolean);
+      const text1 = parts[0] || "No translation submitted for Sentence 1.";
+      const text2 = parts[1] || "No translation submitted for Sentence 2.";
+      const s1Score = parts[0] ? preset.score1 : 0.0;
+      const s2Score = parts[1] ? preset.score2 : 0.0;
       return {
         ...preset,
-        ocrSentence1: cleanText ? (cleanText.split('\n')[0] || preset.ocrSentence1) : preset.ocrSentence1,
-        ocrSentence2: cleanText ? (cleanText.split('\n')[1] || preset.ocrSentence2) : preset.ocrSentence2,
-        detectedSeatNumber: parsedSeat
+        ocrSentence1: text1,
+        ocrSentence2: text2,
+        score1: s1Score,
+        score2: s2Score,
+        totalScore: s1Score + s2Score,
+        detectedSeatNumber: parsedSeat,
+        feedback1: parts[0] ? preset.feedback1 : "未填寫第一句翻譯。",
+        feedback2: parts[1] ? preset.feedback2 : "未填寫第二句翻譯。",
+        majorIssues: (s1Score === 0 || s2Score === 0) ? "⚠️ 部份句子未偵測到作答內容。" : preset.majorIssues
       };
     }
   }
 
   const lines = cleanText.split('\n').map((l: string) => l.trim()).filter(Boolean);
-  const s1Text = lines[0] || "No translation submitted for Sentence 1.";
-  const s2Text = lines[1] || "No translation submitted for Sentence 2.";
-  let score1 = 4.0, score2 = 4.0;
+  const s1Text = lines[0] || "";
+  const s2Text = lines[1] || "";
+
+  let score1 = s1Text ? 4.0 : 0.0;
+  let score2 = s2Text ? 4.0 : 0.0;
   const errors1: any[] = [], errors2: any[] = [];
 
-  if (/\bi\b/.test(s1Text)) { errors1.push({ originalSegment: "i", suggestedSegment: "I", errorType: "Grammar", explanation: "第一人稱代名詞 'I' 均必須強制大寫。", pointsDeducted: 0.5 }); score1 -= 0.5; }
-  if (/\bi\b/.test(s2Text)) { errors2.push({ originalSegment: "i", suggestedSegment: "I", errorType: "Grammar", explanation: "第一人稱代名詞 'I' 均必須強制大寫。", pointsDeducted: 0.5 }); score2 -= 0.5; }
+  if (s1Text) {
+    if (/\bi\b/.test(s1Text)) {
+      errors1.push({ originalSegment: "i", suggestedSegment: "I", errorType: "Grammar", explanation: "第一人稱代名詞 'I' 均必須強制大寫。", pointsDeducted: 0.5 });
+      score1 -= 0.5;
+    }
+    if (/anxius/i.test(s1Text)) {
+      errors1.push({ originalSegment: "anxius", suggestedSegment: "anxious", errorType: "Spelling", explanation: "拼寫錯誤，少了一個 'o'。應為 anxious。", pointsDeducted: 0.5 });
+      score1 -= 0.5;
+    }
+    score1 = Math.max(0.5, score1);
+  }
 
-  score1 = Math.max(cleanText ? 0.5 : 0, score1);
-  score2 = Math.max(cleanText ? 0.5 : 0, score2);
+  if (s2Text) {
+    if (/\bi\b/.test(s2Text)) {
+      errors2.push({ originalSegment: "i", suggestedSegment: "I", errorType: "Grammar", explanation: "第一人稱代名詞 'I' 均必須強制大寫。", pointsDeducted: 0.5 });
+      score2 -= 0.5;
+    }
+    if (/Never the less/i.test(s2Text)) {
+      errors2.push({ originalSegment: "Never the less", suggestedSegment: "Nevertheless", errorType: "Spelling", explanation: "副詞 Nevertheless 應為單一單字，不可拆成三個單詞撰寫。", pointsDeducted: 0.5 });
+      score2 -= 0.5;
+    }
+    score2 = Math.max(0.5, score2);
+  }
 
   return {
     detectedSeatNumber: parsedSeat,
-    ocrSentence1: s1Text,
-    ocrSentence2: s2Text,
-    score1, score2, totalScore: score1 + score2,
-    errors1, errors2,
-    feedback1: score1 === 4.0 ? "翻譯完成度與流暢度很高，單字選用極佳。" : "基本架構掌握度不錯，但細微語法方面仍有磨練空間。",
-    feedback2: score2 === 4.0 ? "語意通順地道，轉折語氣與大考字彙配合度極好。" : "轉折連詞位置正確，惟須額外注意可數名詞單複數一致性。",
+    ocrSentence1: s1Text || "No translation submitted for Sentence 1.",
+    ocrSentence2: s2Text || "No translation submitted for Sentence 2.",
+    score1,
+    score2,
+    totalScore: score1 + score2,
+    errors1,
+    errors2,
+    feedback1: s1Text ? (score1 === 4.0 ? "翻譯完成度與流暢度很高，單字選用極佳。" : "基本架構掌握度不錯，但細微語法方面仍有精進空間。") : "未偵測到作答字元 (No translation submitted).",
+    feedback2: s2Text ? (score2 === 4.0 ? "語意通順地道，轉折語氣與大考字彙配合度極好。" : "轉折連詞位置正確，惟須額外注意可數名詞單複數一致性。") : "未偵測到作答字元 (No translation submitted).",
     improvedVersion: (promptAnalysis.referenceTranslations1?.[0] || "") + " " + (promptAnalysis.referenceTranslations2?.[0] || ""),
-    majorIssues: (errors1.length + errors2.length > 0) ? `⚠️ 全卷檢視有 ${errors1.length + errors2.length} 處常規語法精進切入點。` : "🎉 滿分作答！結構嚴整、用字自然精鍊。"
+    majorIssues: (!s1Text || !s2Text) ? "⚠️ 部分翻譯考題未提交作答，請在對應行補齊。" : ((errors1.length + errors2.length > 0) ? `⚠️ 全卷檢視有 ${errors1.length + errors2.length} 處常規語法精進切入點。` : "🎉 滿分作答！結構嚴整、用字自然精鍊。")
   };
 }
 
@@ -499,9 +550,57 @@ app.post("/api/analyze-prompt", async (req, res) => {
   }
 });
 
+// Helper to extract text and seat number from visual SVG data URIs
+function extractFromSvg(svgDataUri: string): { text: string; seatWeb: number | null } {
+  try {
+    const decoded = decodeURIComponent(
+      svgDataUri
+        .replace(/^data:image\/svg\+xml;utf8,/, "")
+        .replace(/^data:image\/svg\+xml;base64,/, "")
+    );
+    const textMatches = decoded.matchAll(/<text[^>]*>([\s\S]*?)<\/text>/gi);
+    const textLines: string[] = [];
+    let seatWeb: number | null = null;
+    
+    const seatMatch = decoded.match(/SEAT No\.\s*(\d+)/i);
+    if (seatMatch) {
+      seatWeb = parseInt(seatMatch[1], 10);
+    }
+    
+    for (const match of textMatches) {
+      const content = match[1].trim()
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">");
+      if (!content) continue;
+      if (content.includes("SEAT No.") || content === "GSAT" || content.includes("Translation Sheet")) {
+        continue;
+      }
+      textLines.push(content);
+    }
+    
+    return { text: textLines.join("\n"), seatWeb };
+  } catch (err) {
+    console.warn("Failed to extract SVG text:", err);
+    return { text: "", seatWeb: null };
+  }
+}
+
 // ── API: Grade student submission with Rubric ────────────────
 app.post("/api/grade-student", async (req, res) => {
-  const { seatNumber, image, manualText, promptAnalysis } = req.body;
+  let { seatNumber, image, manualText, promptAnalysis } = req.body;
+  
+  // Extract text and seat from handwriting SVG mocks dynamically if available
+  if (image && image.startsWith("data:image/svg+xml")) {
+    const extracted = extractFromSvg(image);
+    if (extracted.text) {
+      manualText = extracted.text;
+    }
+    if (extracted.seatWeb && !seatNumber) {
+      seatNumber = extracted.seatWeb;
+    }
+  }
+
   try {
     if (!promptAnalysis) {
       return res.status(400).json({ error: "Missing prompt analysis context." });
@@ -515,7 +614,8 @@ You are an elite English teacher evaluating a Taiwanese high school student's tr
 2. DEDUCTION STANDARD: Usually, deduct exactly 0.5 points for each error (such as grammatical errors, spelling mistakes, inappropriate word choice, omissions, or unclear phrasing) in a sentence.
 3. ACCUMULATION OF ERRORS: If a sentence is severely incoherent, has a chaotic structure, or is extremely messy, grade it based on overall impression. Do not double-penalize minor things; deduct more heavily overall (e.g., scoring 0.5, 1.0, or 1.5 total for the sentence) based on overall incoherence.
 4. NO REPEATED PENALTIES: If the same spelling, vocabulary, or grammatical mistake occurs multiple times within the same sentence/question, only deduct points ONCE for that specific mistake.
-5. KEYS TO SCORING:
+5. EMPTY OR NO TRANSLATION RULE (CRITICAL): If a sentence is empty, has no translation, has only "No translation submitted", placeholder texts, or has not been answered by the student at all, you MUST award EXACTLY 0.0 points for that sentence. You must never award 4.0 points or full marks for empty or unsubmitted answers.
+6. KEYS TO SCORING:
    - Correct Structure: Ensure sentences have complete subjects and verbs, and tenses (e.g., past tense, present perfect tense, active vs passive voice) are 100% accurate.
    - Vocabulary & Spelling: Pay close attention to spelling. Ensure vocabulary parts of speech match requirements of the sentence pattern perfectly.
    - Fluency & Clarity: Avoid word-for-word translation (Chinglish) at all costs. The translated version should align with natural English idiomatic usage.
@@ -549,8 +649,8 @@ Reference Answers S2: ${JSON.stringify(promptAnalysis.referenceTranslations2)}
 
 Task:
 - If an image is provided as part of OCR, transcribe the handwriting for Sentence 1 and Sentence 2 with absolute preservation of spelling, grammar, and typos, and detect the seat number if visible.
-- If no image is provided, evaluate this typed text directly: "${manualText || ''}". Split it into S1 and S2, then fill "ocrSentence1" and "ocrSentence2" accordingly.
-- Score both S1 and S2 under the rubrics rules specified in your system instructions.
+- If no image is provided or if OCR content matches, evaluate this typed text directly: "${manualText || ''}". Split it into S1 and S2, then fill "ocrSentence1" and "ocrSentence2" accordingly.
+- Score both S1 and S2 under the rubrics rules specified in your system instructions. If the text transcription is empty or represents "No translation submitted", the score is EXACTLY 0.0.
 `;
 
     try {
