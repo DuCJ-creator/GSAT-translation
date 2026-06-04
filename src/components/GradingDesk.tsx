@@ -159,7 +159,7 @@ export default function GradingDesk({
       onGradingComplete(gradedStudent);
     } catch (err: any) {
       console.error(err);
-      setLocalError(err.message || "評分失敗，請確認伺服器連線與 Gemini Key。");
+      setLocalError(err.message || "評分失敗，請確認伺服器連線與 AI Key。");
       onGradingComplete({
         ...student,
         status: "failed"
