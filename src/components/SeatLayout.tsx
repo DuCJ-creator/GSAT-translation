@@ -43,27 +43,28 @@ export default function SeatLayout({
           </div>
         </div>
 
-        {/* Configure Size: Elegant interactive range slider/scroll bar with all numbers from 1 to 60 */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 self-start sm:self-center w-full sm:w-auto max-w-xs">
-          <div className="flex justify-between items-center w-full sm:w-auto gap-2">
+        {/* Configure Size: Elegant interactive range slider/control bar with all numbers from 1 to 60 */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto shrink-0 md:max-w-md">
+          <div className="flex items-center gap-2 shrink-0">
             <span className="text-[10px] text-slate-400 font-semibold uppercase whitespace-nowrap">
               {getTranslation("classSize", lang)}
             </span>
-            <span className="text-xs bg-teal-500/20 text-teal-300 font-mono font-bold px-2 py-0.5 rounded border border-teal-500/30 whitespace-nowrap shrink-0">
+            <span className="text-xs bg-teal-500/20 text-teal-300 font-mono font-bold px-2 py-0.5 rounded border border-teal-500/30 whitespace-nowrap">
               {maxSeats} {lang === "en" ? "Seats" : "座號"}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 w-full sm:w-48 select-none shrink-0">
-            <span className="text-[9px] text-slate-500 font-mono font-semibold">1</span>
+          <div className="flex items-center gap-2 w-full sm:w-56 select-none bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 shrink-0">
+            <span className="text-[9px] text-slate-400 font-mono font-bold">1</span>
             <input
               type="range"
               min="1"
               max="60"
               value={maxSeats}
               onChange={(e) => onSetMaxSeats(Number(e.target.value))}
-              className="w-full h-2 bg-slate-750 border border-slate-700/50 rounded-lg cursor-pointer accent-teal-400 focus:outline-hidden"
+              className="grow h-1.5 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-teal-400 focus:outline-hidden"
+              style={{ minWidth: "140px" }}
             />
-            <span className="text-[9px] text-slate-500 font-mono font-semibold">60</span>
+            <span className="text-[9px] text-slate-400 font-mono font-bold">60</span>
           </div>
         </div>
       </div>
