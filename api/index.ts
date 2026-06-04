@@ -475,74 +475,85 @@ function getFallbackGrading(seatNumber: number, manualText: string, promptAnalys
   const s1Text = lines[0] || "";
   const s2Text = lines[1] || "";
 
-  let score1 = s1Text ? 4.0 : 0.0;
-  let score2 = s2Text ? 4.0 : 0.0;
   const errors1: any[] = [], errors2: any[] = [];
 
   if (s1Text) {
     if (/\bi\b/.test(s1Text)) {
       errors1.push({ originalSegment: "i", suggestedSegment: "I", errorType: "Grammar", explanation: "第一人稱代名詞 'I' 均必須強制大寫。", pointsDeducted: 0.5 });
-      score1 -= 0.5;
     }
     if (/anxius/i.test(s1Text)) {
       errors1.push({ originalSegment: "anxius", suggestedSegment: "anxious", errorType: "Spelling", explanation: "拼寫錯誤，少了一個 'o'。應為 anxious。", pointsDeducted: 0.5 });
-      score1 -= 0.5;
     }
     if (/(many|lots of|numerous|most of)\s+student\b/i.test(s1Text)) {
       errors1.push({ originalSegment: "student", suggestedSegment: "students", errorType: "Grammar", explanation: "複數修飾詞後的可數名詞「學生」應使用複數型 (students)。", pointsDeducted: 0.5 });
-      score1 -= 0.5;
     }
     if (/feel\s+lose\b/i.test(s1Text) || /felt\s+lose\b/i.test(s1Text)) {
       errors1.push({ originalSegment: "lose", suggestedSegment: "lost", errorType: "Word Choice", explanation: "感到迷惘，英文習慣使用形容詞 lost。lose 為動詞「失去」，在此屬詞性誤用。", pointsDeducted: 0.5 });
-      score1 -= 0.5;
     }
     if (/in\s+select\s+/i.test(s1Text) || /in\s+select$/i.test(s1Text)) {
       errors1.push({ originalSegment: "in select", suggestedSegment: "when selecting", errorType: "Structure", explanation: "介名詞 in 後不可接原形動詞 select。請使用動名詞 selecting 或時間子句 when selecting。", pointsDeducted: 0.5 });
-      score1 -= 0.5;
     }
     if (/\bdepart\b/i.test(s1Text)) {
       errors1.push({ originalSegment: "depart", suggestedSegment: "department", errorType: "Word Choice", explanation: "修飾大學學系，應使用名詞 department；depart 為動詞「出發/起飛」。", pointsDeducted: 0.5 });
-      score1 -= 0.5;
     }
     if (/during\s+they\b/i.test(s1Text)) {
       errors1.push({ originalSegment: "during they are choosing", suggestedSegment: "while they are choosing", errorType: "Grammar", explanation: "during 為介系詞，後面不可直接接主動賓子句。請改用連接詞 while 或是 when。", pointsDeducted: 0.5 });
-      score1 -= 0.5;
     }
-    score1 = Math.max(0.5, score1);
   }
 
   if (s2Text) {
     if (/\bi\b/.test(s2Text)) {
       errors2.push({ originalSegment: "i", suggestedSegment: "I", errorType: "Grammar", explanation: "第一人稱代名詞 'I' 均必須強制大寫。", pointsDeducted: 0.5 });
-      score2 -= 0.5;
     }
     if (/Never\s+the\s+less/i.test(s2Text)) {
       errors2.push({ originalSegment: "Never the less", suggestedSegment: "Nevertheless", errorType: "Spelling", explanation: "副詞 Nevertheless 應為單一單字，不可拆分成三個單詞撰寫。", pointsDeducted: 0.5 });
-      score2 -= 0.5;
     }
     if (/exports/i.test(s2Text)) {
       errors2.push({ originalSegment: "exports", suggestedSegment: "experts", errorType: "Spelling", explanation: "諮詢專家拼寫混淆。exports 代表「出口貨品」，專家則為 experts。", pointsDeducted: 0.5 });
-      score2 -= 0.5;
     }
     if (/make\s+(\w+\s+)?decide\b/i.test(s2Text)) {
       const match = s2Text.match(/make\s+(\w+\s+)?decide\b/i);
       errors2.push({ originalSegment: match ? match[0] : "decide", suggestedSegment: "make decision", errorType: "Grammar", explanation: "make 後接形容詞修飾時，必須使用名詞型態 decision；decide 為動詞形式，詞性錯誤。", pointsDeducted: 0.5 });
-      score2 -= 0.5;
     }
     if (/auto\s+exploration/i.test(s2Text)) {
       errors2.push({ originalSegment: "auto exploration", suggestedSegment: "self-exploration", errorType: "Word Choice", explanation: "自我探索語境慣用 self-exploration。auto 通常指機械式自動化。", pointsDeducted: 0.5 });
-      score2 -= 0.5;
     }
     if (/across\s+self/i.test(s2Text)) {
       errors2.push({ originalSegment: "across", suggestedSegment: "through", errorType: "Word Choice", explanation: "表達『透過...手段』，應選用介系詞 through，而非空間上的 across。", pointsDeducted: 0.5 });
-      score2 -= 0.5;
     }
     if (/consulting\s+advisor\b/i.test(s2Text) && !/advisors/i.test(s2Text)) {
       errors2.push({ originalSegment: "advisor", suggestedSegment: "advisors", errorType: "Grammar", explanation: "advisor 為可數名詞，在無冠詞修飾時應採用複數 advisors 以符泛指文法常規。", pointsDeducted: 0.5 });
-      score2 -= 0.5;
     }
-    score2 = Math.max(0.5, score2);
   }
+
+  // De-duplicate deductions by errorType (Deduct Once Rule)
+  let score1 = s1Text ? 4.0 : 0.0;
+  let score2 = s2Text ? 4.0 : 0.0;
+
+  const S1_deducted_types = new Set<string>();
+  errors1.forEach(err => {
+    if (!S1_deducted_types.has(err.errorType)) {
+      S1_deducted_types.add(err.errorType);
+      score1 -= err.pointsDeducted;
+    } else {
+      err.pointsDeducted = 0;
+      err.explanation += "（註：因重複同屬「" + err.errorType + "」類型瑕疵，此處依照評分表新制不重複扣分）";
+    }
+  });
+
+  const S2_deducted_types = new Set<string>();
+  errors2.forEach(err => {
+    if (!S2_deducted_types.has(err.errorType)) {
+      S2_deducted_types.add(err.errorType);
+      score2 -= err.pointsDeducted;
+    } else {
+      err.pointsDeducted = 0;
+      err.explanation += "（註：因重複同屬「" + err.errorType + "」類型瑕疵，此處依照評分表新制不重複扣分）";
+    }
+  });
+
+  if (s1Text) score1 = Math.max(0.5, score1);
+  if (s2Text) score2 = Math.max(0.5, score2);
 
   const s1Feedback = s1Text
     ? (score1 === 4.0
@@ -739,9 +750,12 @@ You are an elite English teacher evaluating a Taiwanese high school student's tr
 
 ### GRADING AND DEDUCTIONS HANDBOOK:
 1. SCORE LIMITS: Each sentence has a maximum of 4.0 points (total 8.0). Score deductions should be in steps of 0.5 points. Minimum score per sentence is 0.0.
-2. DEDUCTION STANDARD: Usually, deduct exactly 0.5 points for each error (such as grammatical errors, spelling mistakes, inappropriate word choice, omissions, or unclear phrasing) in a sentence.
+2. DEDUCTION STANDARD: Usually, deduct exactly 0.5 points for each error in a sentence.
 3. ACCUMULATION OF ERRORS: If a sentence is severely incoherent, has a chaotic structure, or is extremely messy, grade it based on overall impression. Do not double-penalize minor things; deduct more heavily overall (e.g., scoring 0.5, 1.0, or 1.5 total for the sentence) based on overall incoherence.
-4. NO REPEATED PENALTIES: If the same spelling, vocabulary, or grammatical mistake occurs multiple times within the same sentence/question, only deduct points ONCE for that specific mistake.
+4. IMPORTANT RUBRIC UPDATE - NO REPEATED OR SAME-TYPE PENALTIES (STRICTLY DEDUCT ONCE):
+   - The same spelling, vocabulary, or grammatical mistake, OR multiple mistakes belonging to the SAME ERROR TYPE (e.g. Grammar, Spelling, Word Choice, etc.) must ONLY deduct points ONCE!
+   - If a student makes multiple spelling mistakes, deduct points (typically 0.5) ONCE for spelling, and set 'pointsDeducted' to 0 for subsequent spelling mistakes, clearly adding "（註：本篇同屬拼字類型瑕疵，此處不重複扣分）" inside their explanation.
+   - If a student makes multiple grammatical mistakes, deduct points ONCE for grammar, and set 'pointsDeducted' to 0 for any additional grammatical infractions, adding a similar "不重複扣分" note. This ensures the total deduction is fair and fits the single-penalty rubric.
 5. EMPTY OR NO TRANSLATION RULE (CRITICAL): If a sentence is empty, has no translation, has only "No translation submitted", placeholder texts, or has not been answered by the student at all, you MUST award EXACTLY 0.0 points for that sentence. You must never award 4.0 points or full marks for empty or unsubmitted answers.
 6. KEYS TO SCORING:
    - Correct Structure: Ensure sentences have complete subjects and verbs, and tenses (e.g., past tense, present perfect tense, active vs passive voice) are 100% accurate.
