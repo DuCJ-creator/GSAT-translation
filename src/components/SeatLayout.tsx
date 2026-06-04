@@ -53,7 +53,7 @@ export default function SeatLayout({
               {maxSeats} {lang === "en" ? "Seats" : "座號"}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 w-full sm:w-40 select-none">
+          <div className="flex items-center gap-1.5 w-full sm:w-48 select-none shrink-0">
             <span className="text-[9px] text-slate-500 font-mono font-semibold">1</span>
             <input
               type="range"
@@ -61,10 +61,7 @@ export default function SeatLayout({
               max="60"
               value={maxSeats}
               onChange={(e) => onSetMaxSeats(Number(e.target.value))}
-              className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-teal-400 focus:outline-hidden"
-              style={{
-                background: `linear-gradient(to right, #2dd4bf 0%, #2dd4bf ${((maxSeats - 1) / 59) * 100}%, #334155 ${((maxSeats - 1) / 59) * 100}%, #334155 100%)`
-              }}
+              className="w-full h-2 bg-slate-750 border border-slate-700/50 rounded-lg cursor-pointer accent-teal-400 focus:outline-hidden"
             />
             <span className="text-[9px] text-slate-500 font-mono font-semibold">60</span>
           </div>
