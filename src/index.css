@@ -20,3 +20,54 @@
 .grad-glow {
   animation: pulseGlow 2s infinite;
 }
+
+/* ───────────────── BROWSER NATIVE A4 PRINT LAYOUT STYLE ───────────────── */
+@media print {
+  /* Set document margin to standard 1.5cm edges */
+  @page {
+    size: A4 portrait;
+    margin: 15mm;
+  }
+
+  /* Force background colors and red ink marks to render in PDF copies */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Completely hide standard dev app frame, header, navigation controls, and workspaces */
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  
+  /* Select and hide everything in the default app preview */
+  #root > div > *:not(#print-section) {
+    display: none !important;
+  }
+
+  /* Ensure print section takes complete screen allocation during export */
+  #print-section {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Professional A4 sheets pagination */
+  .print-page {
+    box-shadow: none !important;
+    border: none !important;
+    page-break-after: always !important;
+    page-break-inside: avoid !important;
+    width: 100% !important;
+    margin: 0 0 10mm 0 !important;
+    padding-bottom: 10mm !important;
+    border-bottom: 2px dashed #cbd5e1 !important;
+  }
+  
+  .print-page:last-child {
+    border-bottom: none !important;
+    page-break-after: avoid !important;
+  }
+}
