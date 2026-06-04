@@ -7,6 +7,7 @@ import GradingDesk from "./components/GradingDesk";
 import BatchGradingDesk from "./components/BatchGradingDesk";
 import ClassStats from "./components/ClassStats";
 import { LangType, getTranslation } from "./lib/translations";
+import { exportAnnotatedReportsPdf } from "./lib/pdfExporter";
 import { 
   Award, BookOpen, GraduationCap, Sparkles, 
   ChevronRight, Heart, FileDown, Layers, CheckSquare, 
@@ -191,6 +192,11 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Export beautiful red ink annotations reports for all graded sheets to PDF
+  const handleExportRedInkReports = async () => {
+    await exportAnnotatedReportsPdf(students, promptAnalysis, lang);
   };
 
 
@@ -451,13 +457,21 @@ export default function App() {
                           </div>
                         </div>
                         {students.filter(s => s.status === "graded").length > 0 && (
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 flex-wrap justify-end">
                             <button 
                               onClick={handleExportExcel}
                               className="bg-emerald-700 hover:bg-emerald-650 text-white border border-emerald-600 text-[10px] font-bold py-1 px-2.5 rounded flex items-center gap-1 cursor-pointer transition-colors"
                             >
                               <FileSpreadsheet className="w-3 h-3 text-emerald-100" />
                               <span>{lang === "zh" ? "匯出 Excel 檔 (CSV)" : "Export Excel (CSV)"}</span>
+                            </button>
+                            <button 
+                              onClick={handleExportRedInkReports}
+                              className="bg-rose-700 hover:bg-rose-650 text-white border border-rose-600 text-[10px] font-bold py-1 px-2.5 rounded flex items-center gap-1 cursor-pointer transition-colors"
+                              title="匯出全班紅筆糾錯批註考卷至一完整 PDF"
+                            >
+                              <FileText className="w-3 h-3 text-rose-100" />
+                              <span>{lang === "zh" ? "匯出紅筆批註 PDF" : "Export Red Ink PDF"}</span>
                             </button>
                             <button 
                               onClick={() => window.print()}
