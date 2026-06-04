@@ -45,10 +45,18 @@ export default function BatchGradingDesk({
     id: string;
     name: string;
     seatNumber: number;
+    image?: string; // Real base64 jpeg string from PDF.js or simulation SVG uri
   }
   const [simFiles, setSimFiles] = useState<SimFile[]>([]);
   const simFileInputRef = useRef<HTMLInputElement>(null);
   
+  // PDF state indicator
+  const [isExtracting, setIsExtracting] = useState<boolean>(false);
+  
+  // Real-time page preview modal overlays
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewTitle, setPreviewTitle] = useState<string>("");
+
   // States for tab-text (multi-student textarea)
   const [combinedText, setCombinedText] = useState<string>("");
 
@@ -67,6 +75,37 @@ export default function BatchGradingDesk({
   // Log message helper
   const addLog = (msg: string) => {
     setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 50));
+  };
+
+  // Convert PDF to base64 JPEGs page by page on client side using PDF.js
+  const convertPdfToImages = async (file: File, maxPagesToExtract: number): Promise<string[]> => {
+    const pdfjsLib = (window as any)['pdfjs-dist/build/pdf'];
+    if (!pdfjsLib) {
+      throw new Error("PDF.js 裝載模組未偵測到，請確認網路連線或稍候幾秒再試一次。");
+    }
+    
+    const arrayBuffer = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+    const images: string[] = [];
+    
+    // Convert only up to the available max pages
+    const pagesToExtract = Math.min(pdf.numPages, maxPagesToExtract);
+    for (let i = 1; i <= pagesToExtract; i++) {
+      const page = await pdf.getPage(i);
+      // We use scale 2.0 to assure highly detailed, sharp text images to foster higher multimodal OCR precision in Gemini 3.5
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = document.createElement("canvas");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const context = canvas.getContext("2d");
+      if (context) {
+        await page.render({ canvasContext: context, viewport }).promise;
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+        images.push(dataUrl);
+      }
+    }
+    return images;
   };
 
   // Helper to trigger grading API for a single seat
@@ -110,7 +149,7 @@ export default function BatchGradingDesk({
       improvedVersion: report.improvedVersion,
       majorIssues: report.majorIssues,
       studentInputImage: image || undefined,
-      fileName: image ? "batch_scan.png" : "batch_text_sheet.txt"
+      fileName: image ? "batch_scan.jpg" : "batch_text_sheet.txt"
     };
   };
 
@@ -306,11 +345,14 @@ export default function BatchGradingDesk({
   };
 
   // Tab 3: Automatic Class Simulator Booklet Uploading & Ordering Mechanics
-  const handleSimFilesUpload = (files: FileList) => {
+  const handleSimFilesUpload = async (files: FileList) => {
     if (students.length === 0) {
       setLocalError("當前班級無任何學生設定。");
       return;
     }
+
+    setIsExtracting(true);
+    setLocalError(null);
 
     const fileArray = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
     const newSimFiles: SimFile[] = [];
@@ -318,45 +360,90 @@ export default function BatchGradingDesk({
     // Use presentStudents if there are multiple checked, otherwise default to all class students for sequential mapping
     const mappingList = presentStudents.length > 1 ? presentStudents : students;
 
-    // Check if it is a single PDF with several pages requested to be mapped page-by-page
-    if (fileArray.length === 1 && fileArray[0].name.toLowerCase().endsWith(".pdf")) {
-      const file = fileArray[0];
-      // Assume a multipage booklet mapping page-by-page to current present students or class roster in order
-      mappingList.forEach((student, sIdx) => {
-        newSimFiles.push({
-          id: `${file.name}-page-${sIdx + 1}-${Math.random()}`,
-          name: `${file.name} (學籍考卷頁次 ${sIdx + 1} / Page ${sIdx + 1})`,
-          seatNumber: student.seatNumber
+    try {
+      // Check if it is a single PDF with several pages requested to be mapped page-by-page
+      if (fileArray.length === 1 && fileArray[0].name.toLowerCase().endsWith(".pdf")) {
+        const file = fileArray[0];
+        addLog(`⏳ 正在讀取並逐步分頁解析 PDF 考卷檔 (${file.name})...`);
+        
+        // Extract up to mapping list length pages from PDF
+        const extractedPages = await convertPdfToImages(file, mappingList.length);
+        
+        mappingList.forEach((student, sIdx) => {
+          if (sIdx < extractedPages.length) {
+            newSimFiles.push({
+              id: `${file.name}-page-${sIdx + 1}-${Math.random()}`,
+              name: `${file.name} (學籍考卷第 ${sIdx + 1} 頁 / Page ${sIdx + 1})`,
+              seatNumber: student.seatNumber,
+              image: extractedPages[sIdx] // Store real binary high-res content JPEG
+            });
+          }
         });
-      });
-      addLog(`📂 成功裝載單一 PDF 檔：已為當前之 ${mappingList.length} 位學生依序分頁配對考卷`);
-    } else {
-      // Multiple separate PDF/JPG/PNG files mapped in sequential seat number order
-      fileArray.forEach((file, index) => {
-        const assignedStudent = mappingList[index % mappingList.length];
-        newSimFiles.push({
-          id: `${file.name}-${index}-${Math.random()}`,
-          name: file.name,
-          seatNumber: assignedStudent ? assignedStudent.seatNumber : index + 1
-        });
-      });
-      addLog(`📂 成功裝載整疊獨立考卷：已讀入 ${fileArray.length} 份檔案，並依序分派對應座號`);
-    }
+        addLog(`📂 成功分頁解析該 PDF：已為當前之 ${newSimFiles.length} 位出席學生依序分頁配對實體考卷影像圖像`);
+      } else {
+        // Multiple separate PDF/JPG/PNG files mapped in sequential seat number order
+        addLog(`⏳ 正在讀取、解析並載入多份獨立的考卷檔案...`);
+        for (let index = 0; index < fileArray.length; index++) {
+          const file = fileArray[index];
+          const assignedStudent = mappingList[index % mappingList.length];
+          const seatNumber = assignedStudent ? assignedStudent.seatNumber : index + 1;
+          
+          let fileImage: string | undefined = undefined;
+          
+          if (file.type.startsWith("image/")) {
+            fileImage = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = (e) => resolve(e.target?.result as string);
+              reader.readAsDataURL(file);
+            });
+          } else if (file.name.toLowerCase().endsWith(".pdf")) {
+            try {
+              const extracted = await convertPdfToImages(file, 1);
+              if (extracted.length > 0) fileImage = extracted[0];
+            } catch (pErr) {
+              console.error("Single page PDF extraction failed", pErr);
+            }
+          }
+          
+          newSimFiles.push({
+            id: `${file.name}-${index}-${Math.random()}`,
+            name: file.name,
+            seatNumber: seatNumber,
+            image: fileImage
+          });
+        }
+        addLog(`📂 成功裝載整疊獨立考卷：已讀入 ${newSimFiles.length} 份考卷影像，並依序分派對應座號`);
+      }
 
-    setSimFiles(newSimFiles);
-    setLocalError(null);
+      setSimFiles(prev => [...prev, ...newSimFiles]);
+    } catch (err: any) {
+      console.error(err);
+      setLocalError(`解析考卷檔案過程發生錯誤：${err.message || "格式不支援"}`);
+    } finally {
+      setIsExtracting(false);
+    }
   };
 
   const handleGenerateSimBundle = () => {
     const listToGenerate = presentStudents.length > 1 ? presentStudents : students;
-    const newSimFiles: SimFile[] = listToGenerate.map((student, idx) => ({
-      id: `sim-page-${student.seatNumber}`,
-      name: `Compiled_Class_Exams_Seat_${student.seatNumber.toString().padStart(2, "0")}.pdf`,
-      seatNumber: student.seatNumber
-    }));
-    setSimFiles(newSimFiles);
+    const newSimFilesToGen: SimFile[] = listToGenerate.map((student, idx) => {
+      // Resolve realistic mock standard responses
+      const foundDemo = DEMO_STUDENT_SUBMISSIONS.find(d => d.seatNumber === student.seatNumber || d.seatNumber === ((student.seatNumber - 1) % 5) + 1);
+      const textInput = foundDemo 
+        ? foundDemo.textInput 
+        : `Many students feel anxious when picking their major.\nBut through consulting expert advisers they can make appropriate decisions.`;
+      
+      const svgUri = generateHandwritingSvg(student.seatNumber, textInput);
+      return {
+        id: `sim-page-${student.seatNumber}-${Math.random()}`,
+        name: `Compiled_Class_Exams_Seat_${student.seatNumber.toString().padStart(2, "0")}.pdf (學籍考卷第 ${student.seatNumber} 頁)`,
+        seatNumber: student.seatNumber,
+        image: svgUri // Pre-populate with realistic handwriting SVG so it can be previewed!
+      };
+    });
+    setSimFiles(newSimFilesToGen);
     setLocalError(null);
-    addLog(`✨ 已自動生成全班整合 PDF 手寫考卷組（共 ${listToGenerate.length} 頁學生的裝頁卷）`);
+    addLog(`✨ 已自動生成全班整合 PDF 手寫考卷組（共 ${listToGenerate.length} 頁學生的虛擬裝頁卷 - 可點擊個別預覽）`);
   };
 
   const handleUpdateSimSeat = (fileId: string, newSeat: number) => {
@@ -376,14 +463,16 @@ export default function BatchGradingDesk({
         ? foundDemo.textInput 
         : `Many students feel anxious when picking their major.\nBut through consulting expert advisers they can make appropriate decisions. (Seat #${f.seatNumber} student Response)`;
       
-      const svgUri = generateHandwritingSvg(f.seatNumber, textInput);
+      const isMockSvg = f.image && f.image.startsWith("data:image/svg+xml");
       
       return {
         id: f.id || `sim-${f.seatNumber}-${idx}-${Math.random()}`,
         seatNumber: f.seatNumber,
         fileName: f.name,
-        image: svgUri,
-        manualText: textInput,
+        // Trigger true OCR: if f.image is present, let Gemini transcribe it! 
+        // We only pass preset manualText if it's a simulated SVG handwritten mockup, to save API tokens.
+        image: f.image || generateHandwritingSvg(f.seatNumber, textInput),
+        manualText: isMockSvg ? textInput : undefined,
         status: "idle" as const
       };
     });
@@ -513,7 +602,13 @@ export default function BatchGradingDesk({
                 </p>
               </div>
 
-              {simFiles.length === 0 ? (
+              {isExtracting ? (
+                <div className="border border-teal-200 bg-teal-50/50 rounded-xl p-8 text-center space-y-3 text-teal-800 animate-pulse">
+                  <RefreshCw className="w-8 h-8 animate-spin mx-auto text-teal-600" />
+                  <p className="text-xs font-extrabold font-sans">正在封裝與分頁解析大考考卷影像...</p>
+                  <p className="text-[10px] text-teal-600/85">正在分派 PDF.js 智能引擎進行多頁面影像轉譯分析，可能需要 1~2 秒，請稍等。</p>
+                </div>
+              ) : simFiles.length === 0 ? (
                 <div className="space-y-3">
                   <div
                     onDragEnter={handleDrag}
@@ -579,15 +674,29 @@ export default function BatchGradingDesk({
                     </div>
 
                     <p className="text-[10px] text-slate-400 leading-relaxed">
-                      💡 備忘：若部分學生的考卷排序與座號順序不符，您可以<b>點選下拉選單手動校正座號對應</b>：
+                      💡 備忘：您可以<b>點選「👁 預覽」查看各頁考卷畫面</b>，若與座號不符，隨時可按下拉選單手動調整座號：
                     </p>
 
                     <div className="divide-y divide-slate-150 space-y-1.5">
                       {simFiles.map((f, i) => (
-                        <div key={f.id} className="pt-2 pb-1 text-xs font-sans text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                          <span className="truncate max-w-[200px] font-mono text-slate-500" title={f.name}>
-                            📄 {f.name}
-                          </span>
+                        <div key={f.id} className="pt-2 pb-1 text-xs font-sans text-slate-705 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 hover:bg-slate-100/50 px-1.5 rounded transition-all group">
+                          <div className="flex items-center gap-1.5 overflow-hidden mr-2 max-w-[190px] sm:max-w-[210px]">
+                            <span className="truncate font-mono text-slate-500" title={f.name}>
+                              📄 {f.name}
+                            </span>
+                            {f.image && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPreviewImage(f.image || null);
+                                  setPreviewTitle(`座號 #${f.seatNumber.toString().padStart(2, "0")} 考卷頁次預覽 - ${f.name}`);
+                                }}
+                                className="text-[10px] bg-sky-50 border border-sky-200 hover:border-sky-300 text-sky-700 font-bold px-1.5 py-0.5 rounded cursor-pointer transition-all flex items-center gap-0.5"
+                              >
+                                👁 預覽
+                              </button>
+                            )}
+                          </div>
                           
                           {/* Fine-Tuning Dropdown Selector */}
                           <div className="flex items-center gap-1 shrink-0">
@@ -595,7 +704,7 @@ export default function BatchGradingDesk({
                             <select
                               value={f.seatNumber}
                               onChange={(e) => handleUpdateSimSeat(f.id, parseInt(e.target.value, 10))}
-                              className="text-[11px] bg-white border border-slate-300 rounded-md px-1.5 py-0.5 font-bold text-slate-800 focus:ring-1 focus:ring-teal-500 max-w-[120px]"
+                              className="text-[11px] bg-white border border-slate-300 rounded-md px-1.5 py-0.5 font-bold text-slate-800 focus:ring-1 focus:ring-teal-500 max-w-[120px] cursor-pointer"
                             >
                               {students.map(student => (
                                 <option key={student.seatNumber} value={student.seatNumber}>
@@ -744,6 +853,37 @@ export default function BatchGradingDesk({
         </div>
 
       </div>
+
+      {/* Dynamic Image Preview Modal Overlay */}
+      {previewImage && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 flex items-center justify-center p-4 backdrop-blur-xs" onClick={() => setPreviewImage(null)}>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-2xl w-full p-4 relative max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center pb-2 border-b border-slate-150 mb-3">
+              <span className="text-xs font-bold text-slate-800">{previewTitle}</span>
+              <button type="button" className="text-slate-400 hover:text-slate-600 font-extrabold text-sm cursor-pointer" onClick={() => setPreviewImage(null)}>✕</button>
+            </div>
+            <div className="flex-1 overflow-auto bg-slate-50 border rounded-lg p-2 flex items-center justify-center">
+              {previewImage.startsWith("data:image/svg+xml") ? (
+                <div className="w-full h-full flex items-center justify-center bg-white p-4 rounded border">
+                  <div className="w-full max-w-md" dangerouslySetInnerHTML={{ __html: decodeURIComponent(previewImage.replace(/^data:image\/svg\+xml;utf8,/, "").replace(/^data:image\/svg\+xml;base64,/, "")) }} />
+                </div>
+              ) : (
+                <img src={previewImage} alt="Student PDF Scan Page preview" className="max-w-full max-h-[55vh] object-contain rounded-md" />
+              )}
+            </div>
+            <div className="pt-3 flex justify-between items-center">
+              <p className="text-[10px] text-slate-400">💡 提示：點擊右上角 X 或外圍可隨時關閉此預覽畫面</p>
+              <button 
+                type="button"
+                className="bg-slate-950 hover:bg-slate-800 text-white text-[11px] font-bold py-1.5 px-4 rounded-lg shadow-xs cursor-pointer" 
+                onClick={() => setPreviewImage(null)}
+              >
+                關閉視窗 (Close)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
