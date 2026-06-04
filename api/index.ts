@@ -725,6 +725,115 @@ function extractFromSvg(svgDataUri: string): { text: string; seatWeb: number | n
   }
 }
 
+// ── Score Post-Processor to enforce Deduct Once & Perfect calculations ──
+function sanitizeAndRecalculateScores(gradingResult: any): any {
+  if (!gradingResult || typeof gradingResult !== "object") return gradingResult;
+  
+  // Create a deep copy to prevent any mutation issues
+  const res = JSON.parse(JSON.stringify(gradingResult));
+
+  // Determine if sentence 1 or 2 is empty/unsubmitted
+  const s1Text = res.ocrSentence1 || "";
+  const s2Text = res.ocrSentence2 || "";
+  
+  const s1IsEmpty = !s1Text.trim() || 
+                    s1Text.toLowerCase().includes("no translation submitted") || 
+                    s1Text.toLowerCase().includes("no translation available") ||
+                    s1Text.toLowerCase().includes("placeholder") ||
+                    s1Text.includes("未作答") ||
+                    s1Text === "(空白或無辨識結果)";
+                    
+  const s2IsEmpty = !s2Text.trim() || 
+                    s2Text.toLowerCase().includes("no translation submitted") || 
+                    s2Text.toLowerCase().includes("no translation available") ||
+                    s2Text.toLowerCase().includes("placeholder") ||
+                    s2Text.includes("未作答") ||
+                    s2Text === "(空白或無辨識結果)";
+
+  let baseS1 = s1IsEmpty ? 0.0 : 4.0;
+  let baseS2 = s2IsEmpty ? 0.0 : 4.0;
+
+  // Process Sentence 1 Errors
+  const errors1 = res.errors1 || [];
+  const s1SeenTypes = new Set<string>();
+  let sumDeduction1 = 0;
+
+  errors1.forEach((err: any) => {
+    // Normalise name (e.g. Grammar, Spelling, Word Choice, etc.)
+    const rawType = (err.errorType || "General").trim();
+    const currentType = rawType.toLowerCase();
+
+    // If a student makes multiple mistakes belonging to the same error type, only deduct once!
+    if (s1SeenTypes.has(currentType)) {
+      err.pointsDeducted = 0;
+      if (!err.explanation.includes("不重複扣分")) {
+        err.explanation += "（註：因重複同屬「" + rawType + "」類型瑕疵，此處依照評分表新制不重複扣分）";
+      }
+    } else {
+      // First time we encounter this error type
+      s1SeenTypes.add(currentType);
+      
+      // Ensure pointsDeducted exists and is reasonable, default 0.5
+      let points = Number(err.pointsDeducted);
+      if (isNaN(points) || points < 0) {
+        points = 0.5;
+      }
+      err.pointsDeducted = points;
+      sumDeduction1 += points;
+    }
+  });
+
+  // Process Sentence 2 Errors
+  const errors2 = res.errors2 || [];
+  const s2SeenTypes = new Set<string>();
+  let sumDeduction2 = 0;
+
+  errors2.forEach((err: any) => {
+    const rawType = (err.errorType || "General").trim();
+    const currentType = rawType.toLowerCase();
+
+    if (s2SeenTypes.has(currentType)) {
+      err.pointsDeducted = 0;
+      if (!err.explanation.includes("不重複扣分")) {
+        err.explanation += "（註：因重複同屬「" + rawType + "」類型瑕疵，此處依照評分表新制不重複扣分）";
+      }
+    } else {
+      s2SeenTypes.add(currentType);
+      
+      let points = Number(err.pointsDeducted);
+      if (isNaN(points) || points < 0) {
+        points = 0.5;
+      }
+      err.pointsDeducted = points;
+      sumDeduction2 += points;
+    }
+  });
+
+  // Calculate scores
+  let score1 = s1IsEmpty ? 0.0 : Math.max(0.0, baseS1 - sumDeduction1);
+  let score2 = s2IsEmpty ? 0.0 : Math.max(0.0, baseS2 - sumDeduction2);
+
+  // Apply round checks (deductions are in steps of 0.5 points)
+  score1 = Math.round(score1 * 2) / 2;
+  score2 = Math.round(score2 * 2) / 2;
+
+  res.score1 = score1;
+  res.score2 = score2;
+  res.totalScore = score1 + score2;
+  res.errors1 = errors1;
+  res.errors2 = errors2;
+
+  // Set friendly feedbacks if they're empty or placeholder
+  if (!res.feedback1 || res.feedback1.includes("No feedback")) {
+    res.feedback1 = s1IsEmpty ? "未作答" : (score1 === 4.0 ? "翻譯非常優秀，符合高標解答常模。" : "此句包含文法或字詞微疵。");
+  }
+  if (!res.feedback2 || res.feedback2.includes("No feedback")) {
+    res.feedback2 = s2IsEmpty ? "未作答" : (score2 === 4.0 ? "結構完整、時態及轉折關係流暢清晰。" : "部分副詞、動詞主動被動關係可再琢磨。");
+  }
+
+  return res;
+}
+
 // ── API: Grade student submission with Rubric ────────────────
 app.post("/api/grade-student", async (req, res) => {
   let { seatNumber, image, manualText, promptAnalysis } = req.body;
@@ -805,7 +914,7 @@ Task:
             gradingPrompt,
             image
           );
-          return res.json(data);
+          return res.json(sanitizeAndRecalculateScores(data));
         } catch (err: any) {
           console.error("OpenAI grading failed, trying Gemini:", err.message);
           if (!hasGeminiKey()) {
@@ -853,7 +962,7 @@ Task:
         });
 
         if (!response.text) throw new Error("Empty response from Gemini.");
-        return res.json(JSON.parse(response.text.trim()));
+        return res.json(sanitizeAndRecalculateScores(JSON.parse(response.text.trim())));
       }
     } catch (apiError: any) {
       console.error("AI grading true call failed after retries:", apiError.message);
@@ -865,10 +974,10 @@ Task:
     }
 
     // Graceful fallback ONLY if AI keys are missing OR if manualText is provided enabling high-fidelity offline simulation
-    return res.json(getFallbackGrading(seatNumber, manualText, promptAnalysis));
+    return res.json(sanitizeAndRecalculateScores(getFallbackGrading(seatNumber, manualText, promptAnalysis)));
   } catch (error: any) {
     console.error("General error in /api/grade-student:", error);
-    return res.json(getFallbackGrading(seatNumber, manualText, promptAnalysis));
+    return res.json(sanitizeAndRecalculateScores(getFallbackGrading(seatNumber, manualText, promptAnalysis)));
   }
 });
 
