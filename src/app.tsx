@@ -198,23 +198,22 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 selection:bg-teal-500 selection:text-white flex flex-col font-sans">
       
-      {/* Top Professional Navigation Header Bar */}
-      <header className="bg-slate-950 text-white border-b border-teal-500/10 sticky top-0 z-50 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col items-center justify-center text-center">
+      {/* Top Professional Centered Navigation Header Bar */}
+      <header className="bg-slate-950 text-white border-b border-teal-500/20 sticky top-0 z-50 shadow-lg py-10">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col items-center justify-center text-center space-y-4">
           
-          {/* Logo brand and centered layout */}
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-teal-500 flex items-center justify-center shadow-lg shadow-teal-500/20">
-              <GraduationCap className="w-7 h-7 text-slate-950" />
-            </div>
-            <div className="space-y-1">
-              <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-white leading-tight">
-                {getTranslation("navTitle", lang)}
-              </h1>
-              <p className="text-xs md:text-sm text-teal-400 font-medium tracking-wide">
-                {getTranslation("navSubtitle", lang)}
-              </p>
-            </div>
+          {/* Centered Logo brand and spacious layout */}
+          <div className="w-14 h-14 rounded-2xl bg-teal-500 flex items-center justify-center shadow-xl shadow-teal-500/30 transition-transform hover:scale-105 duration-300">
+            <GraduationCap className="w-9 h-9 text-slate-950 stroke-[2]" />
+          </div>
+          
+          <div className="space-y-2 max-w-3xl">
+            <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white leading-none filter drop-shadow-md">
+              {getTranslation("navTitle", lang)}
+            </h1>
+            <p className="text-sm md:text-base text-teal-400 font-semibold tracking-wider uppercase opacity-95">
+              {getTranslation("navSubtitle", lang)}
+            </p>
           </div>
 
         </div>
@@ -551,7 +550,7 @@ export default function App() {
                                     <td className="py-2 px-3 font-mono font-bold text-teal-850">
                                       {isGraded ? `${student.totalScore?.toFixed(1)}` : "-"}
                                     </td>
-                                    <td className="py-2 px-3 text-slate-600 max-w-xs whitespace-normal break-words leading-relaxed text-[11px]" title={student.majorIssues || ""}>
+                                    <td className="py-2 px-3 text-slate-600 whitespace-pre-line break-words min-w-[200px] max-w-[320px] leading-relaxed text-[11px]">
                                       {isGraded ? student.majorIssues : "-"}
                                     </td>
                                     <td className="py-2 px-3 text-right">
