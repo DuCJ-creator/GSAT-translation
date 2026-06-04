@@ -526,29 +526,31 @@ function getFallbackGrading(seatNumber: number, manualText: string, promptAnalys
     }
   }
 
-  // De-duplicate deductions by errorType (Deduct Once Rule)
+  // De-duplicate deductions by exact same error (Deduct Once Rule)
   let score1 = s1Text ? 4.0 : 0.0;
   let score2 = s2Text ? 4.0 : 0.0;
 
-  const S1_deducted_types = new Set<string>();
+  const S1_deducted_errors = new Set<string>();
   errors1.forEach(err => {
-    if (!S1_deducted_types.has(err.errorType)) {
-      S1_deducted_types.add(err.errorType);
-      score1 -= err.pointsDeducted;
-    } else {
+    const seg = (err.originalSegment || "").trim().toLowerCase();
+    if (seg && S1_deducted_errors.has(seg)) {
       err.pointsDeducted = 0;
-      err.explanation += "（註：因重複同屬「" + err.errorType + "」類型瑕疵，此處依照評分表新制不重複扣分）";
+      err.explanation += "（註：因重複相同處之瑕疵，此處依照大考中心規定不重複扣分）";
+    } else {
+      if (seg) S1_deducted_errors.add(seg);
+      score1 -= err.pointsDeducted;
     }
   });
 
-  const S2_deducted_types = new Set<string>();
+  const S2_deducted_errors = new Set<string>();
   errors2.forEach(err => {
-    if (!S2_deducted_types.has(err.errorType)) {
-      S2_deducted_types.add(err.errorType);
-      score2 -= err.pointsDeducted;
-    } else {
+    const seg = (err.originalSegment || "").trim().toLowerCase();
+    if (seg && S2_deducted_errors.has(seg)) {
       err.pointsDeducted = 0;
-      err.explanation += "（註：因重複同屬「" + err.errorType + "」類型瑕疵，此處依照評分表新制不重複扣分）";
+      err.explanation += "（註：因重複相同處之瑕疵，此處依照大考中心規定不重複扣分）";
+    } else {
+      if (seg) S2_deducted_errors.add(seg);
+      score2 -= err.pointsDeducted;
     }
   });
 
@@ -755,23 +757,22 @@ function sanitizeAndRecalculateScores(gradingResult: any): any {
 
   // Process Sentence 1 Errors
   const errors1 = res.errors1 || [];
-  const s1SeenTypes = new Set<string>();
+  const s1SeenErrors = new Set<string>();
   let sumDeduction1 = 0;
 
   errors1.forEach((err: any) => {
-    // Normalise name (e.g. Grammar, Spelling, Word Choice, etc.)
-    const rawType = (err.errorType || "General").trim();
-    const currentType = rawType.toLowerCase();
+    const rawSegment = (err.originalSegment || "").trim().toLowerCase();
 
-    // If a student makes multiple mistakes belonging to the same error type, only deduct once!
-    if (s1SeenTypes.has(currentType)) {
+    // If a student makes the exact same error, only deduct once!
+    if (rawSegment && s1SeenErrors.has(rawSegment)) {
       err.pointsDeducted = 0;
       if (!err.explanation.includes("不重複扣分")) {
-        err.explanation += "（註：因重複同屬「" + rawType + "」類型瑕疵，此處依照評分表新制不重複扣分）";
+        err.explanation += "（註：因重複此相同處之瑕疵，此處依照大考中心規定不重複扣分）";
       }
     } else {
-      // First time we encounter this error type
-      s1SeenTypes.add(currentType);
+      if (rawSegment) {
+        s1SeenErrors.add(rawSegment);
+      }
       
       // Ensure pointsDeducted exists and is reasonable, default 0.5
       let points = Number(err.pointsDeducted);
@@ -785,20 +786,21 @@ function sanitizeAndRecalculateScores(gradingResult: any): any {
 
   // Process Sentence 2 Errors
   const errors2 = res.errors2 || [];
-  const s2SeenTypes = new Set<string>();
+  const s2SeenErrors = new Set<string>();
   let sumDeduction2 = 0;
 
   errors2.forEach((err: any) => {
-    const rawType = (err.errorType || "General").trim();
-    const currentType = rawType.toLowerCase();
+    const rawSegment = (err.originalSegment || "").trim().toLowerCase();
 
-    if (s2SeenTypes.has(currentType)) {
+    if (rawSegment && s2SeenErrors.has(rawSegment)) {
       err.pointsDeducted = 0;
       if (!err.explanation.includes("不重複扣分")) {
-        err.explanation += "（註：因重複同屬「" + rawType + "」類型瑕疵，此處依照評分表新制不重複扣分）";
+        err.explanation += "（註：因重複此相同處之瑕疵，此處依照大考中心規定不重複扣分）";
       }
     } else {
-      s2SeenTypes.add(currentType);
+      if (rawSegment) {
+        s2SeenErrors.add(rawSegment);
+      }
       
       let points = Number(err.pointsDeducted);
       if (isNaN(points) || points < 0) {
@@ -855,19 +857,24 @@ app.post("/api/grade-student", async (req, res) => {
     }
 
     const gradingSystemPrompt = `
-You are an elite English teacher evaluating a Taiwanese high school student's translation for the GSAT under these strict grading guidelines:
+You are an elite English teacher evaluating a Taiwanese high school student's translation for the GSAT under these strict grading guidelines based on the official College Entrance Examination Center (CEEC / 大考中心) rubric:
 
-### GRADING AND DEDUCTIONS HANDBOOK:
-1. SCORE LIMITS: Each sentence has a maximum of 4.0 points (total 8.0). Score deductions should be in steps of 0.5 points. Minimum score per sentence is 0.0.
-2. DEDUCTION STANDARD: Usually, deduct exactly 0.5 points for each error in a sentence.
-3. ACCUMULATION OF ERRORS: If a sentence is severely incoherent, has a chaotic structure, or is extremely messy, grade it based on overall impression. Do not double-penalize minor things; deduct more heavily overall (e.g., scoring 0.5, 1.0, or 1.5 total for the sentence) based on overall incoherence.
-4. IMPORTANT RUBRIC UPDATE - NO REPEATED OR SAME-TYPE PENALTIES (STRICTLY DEDUCT ONCE):
-   - The same spelling, vocabulary, or grammatical mistake, OR multiple mistakes belonging to the SAME ERROR TYPE (e.g. Grammar, Spelling, Word Choice, etc.) must ONLY deduct points ONCE!
-   - If a student makes multiple spelling mistakes, deduct points (typically 0.5) ONCE for spelling, and set 'pointsDeducted' to 0 for subsequent spelling mistakes, clearly adding "（註：本篇同屬拼字類型瑕疵，此處不重複扣分）" inside their explanation.
-   - If a student makes multiple grammatical mistakes, deduct points ONCE for grammar, and set 'pointsDeducted' to 0 for any additional grammatical infractions, adding a similar "不重複扣分" note. This ensures the total deduction is fair and fits the single-penalty rubric.
+### CEEC OFFICIAL GSAT TRANSLATION GRADING RUBRIC:
+1. SCORE LIMITS: The Chinese-to-English translation is worth a total of 8.0 points. It belongs to two independent sub-questions/sentences worth 4.0 points each. Score deductions should be in steps of 0.5 points. Minimum score per sentence is 0.0.
+2. DEDUCTION STANDARD (0.5 Points per Error): In principle, each individual grammatical, word-choice, spelling, or mechanics error results in a 0.5-point deduction until the 4.0 points for that sub-sentence is fully deducted.
+   - Spelling Errors: A misspelled word results in a 0.5-point deduction.
+   - Grammatical Errors: Incorrect tenses, subject-verb agreement issues (singular/plural), wrong prepositions, active/passive voice mistakes, etc., each result in a 0.5-point deduction.
+   - Missing or Extra Words: Missing a translation for a key vocabulary word or translating meanings not present in the original text results in a 0.5-point deduction.
+   - Capitalization and Punctuation: Failing to capitalize the beginning of a sentence, failing to capitalize "I", or using improper punctuation each results in a 0.5-point deduction.
+3. IMPORTANT EXEMPTION RULES & EXCEPTIONS:
+   - NO CUMULATIVE PENALTIES FOR REPEATED ERRORS: The exact same spelling or grammatical error will only be penalized once within the same sub-question (sub-sentence). 
+     * For example, if a student misspells the exact same word "anxious" in the exact same way twice inside Sentence 1, only deduct 0.5 once. Under that circumstance, set 'pointsDeducted' to 0 for subsequent identical spelling errors, and add "（註：重複相同處之拼字瑕疵，此處依照大考中心規定不重複扣分）" inside their explanation.
+     * Grammatical errors of the exact same style (e.g. duplicating the exact same subject-verb agreement single-plural error on the same subject) should only be deducted once.
+     * Note that DIFFERENT spelling or grammatical errors (e.g., misspelling two different words, or making both a tense error and a preposition error) are distinct and MUST each be deducted 0.5 points.
+4. INDEPENDENT SECTIONS: The two sub-questions/sentences are graded independently; errors in the first sub-question must not affect the score of the second sub-question.
 5. EMPTY OR NO TRANSLATION RULE (CRITICAL): If a sentence is empty, has no translation, has only "No translation submitted", placeholder texts, or has not been answered by the student at all, you MUST award EXACTLY 0.0 points for that sentence. You must never award 4.0 points or full marks for empty or unsubmitted answers.
 6. KEYS TO SCORING:
-   - Correct Structure: Ensure sentences have complete subjects and verbs, and tenses (e.g., past tense, present perfect tense, active vs passive voice) are 100% accurate.
+   - Correct Structure: Ensure sentences have complete subjects and verbs, and tenses match perfectly.
    - Vocabulary & Spelling: Pay close attention to spelling. Ensure vocabulary parts of speech match requirements of the sentence pattern perfectly.
    - Fluency & Clarity: Avoid word-for-word translation (Chinglish) at all costs. The translated version should align with natural English idiomatic usage.
 
