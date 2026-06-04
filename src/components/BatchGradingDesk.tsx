@@ -703,20 +703,6 @@ export default function BatchGradingDesk({
                       className="hidden"
                     />
                   </div>
-
-                  <div className="text-center py-1">
-                    <span className="text-[10px] text-slate-400 font-mono">— OR / 或點此模擬體驗 —</span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleGenerateSimBundle}
-                    disabled={presentStudents.length === 0}
-                    className="w-full py-2 px-3 border border-dashed border-teal-500/40 hover:border-teal-500/80 bg-teal-500/5 hover:bg-teal-500/10 text-teal-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all text-center"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    未備妥實體卷？點此自動載入全班模擬考卷組 (Demo)
-                  </button>
                 </div>
               ) : (
                 <div className="space-y-3">
