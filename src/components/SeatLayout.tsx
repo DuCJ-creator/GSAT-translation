@@ -44,8 +44,8 @@ export default function SeatLayout({
         </div>
 
         {/* Configure Size: Elegant interactive range slider/control bar with all numbers from 1 to 60 */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto shrink-0 md:max-w-md">
-          <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-col items-start sm:items-end gap-2 shrink-0">
+          <div className="flex items-center gap-2">
             <span className="text-[10px] text-slate-400 font-semibold uppercase whitespace-nowrap">
               {getTranslation("classSize", lang)}
             </span>
@@ -53,7 +53,7 @@ export default function SeatLayout({
               {maxSeats} {lang === "en" ? "Seats" : "座號"}
             </span>
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-56 select-none bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 shrink-0">
+          <div className="flex items-center gap-2 select-none bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 shrink-0 w-44 sm:w-48">
             <span className="text-[9px] text-slate-400 font-mono font-bold">1</span>
             <input
               type="range"
@@ -61,8 +61,7 @@ export default function SeatLayout({
               max="60"
               value={maxSeats}
               onChange={(e) => onSetMaxSeats(Number(e.target.value))}
-              className="grow h-1.5 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-teal-400 focus:outline-hidden"
-              style={{ minWidth: "140px" }}
+              className="grow h-1.5 bg-slate-600 rounded-lg cursor-pointer accent-teal-400 focus:outline-hidden"
             />
             <span className="text-[9px] text-slate-400 font-mono font-bold">60</span>
           </div>
