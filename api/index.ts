@@ -589,6 +589,52 @@ function getFallbackGrading(seatNumber: number, manualText: string, promptAnalys
   };
 }
 
+function formatFriendlyError(error: any): string {
+  const errMsg = (error?.message || String(error)).trim();
+  const lowerMsg = errMsg.toLowerCase();
+
+  // 1. HTTP Referer restriction block (commonly blocked on Google Cloud)
+  if (
+    lowerMsg.includes("api_key_http_referrer_blocked") ||
+    lowerMsg.includes("requests from referer") ||
+    lowerMsg.includes("referer <empty> are blocked") ||
+    lowerMsg.includes("referer blocked") ||
+    lowerMsg.includes("api_key_http_referer_blocked")
+  ) {
+    return "💡 金鑰安全限制異常：\n您的 Google Cloud API 金鑰目前設定了「HTTP 來源網站限制 (HTTP Referrer)」！\n\n【原因分析】：\n大考英文 Translation AI 批改系統採用了安全且不外洩 API 金鑰的「伺服器端安全連線 (Server-side)」運作模式。然而當伺服器向 Google 伺服器發送 API 請求時，Google Cloud 系統會判定為「Referer 來源為空」進而強制攔截。\n\n【解決方案】：\n1. 請登入您或學校的 Google Cloud Console 或是 Google AI Studio。\n2. 點擊金鑰設置，將此 API 金鑰的「來源網站 / 硬體應用程式限制」暫時調整為「無限制 (None)」。\n3. 若考慮絕對資安，請調整為啟用其下方的「API 限制」，並勾選「限制僅能發送 Generative Language API 請求」（而非設定 HTTP 來源 Referer 限制）。修改並儲存後即可立刻批改與分析！";
+  }
+
+  // 2. Permission Denied or Invalid API Key
+  if (
+    lowerMsg.includes("permission_denied") ||
+    lowerMsg.includes("api key not valid") ||
+    lowerMsg.includes("invalid api key") ||
+    lowerMsg.includes("key blocked") ||
+    lowerMsg.includes("unauthorized") ||
+    lowerMsg.includes("403")
+  ) {
+    return `💡 金鑰無效或授權遭拒 (403 Permission Denied)：\n\n【常見排查原因】：\n1. 輸入的 API 金鑰不正確（複製時多選了前後空白，或未完整選取）。\n2. 該金鑰所屬的 Google Cloud 專案可能已被停用、過期或信用卡授權未開通。\n3. 您可能啟用了不相容的 API 安全限制（例如來源 IP 限制），而非上方的 Referrer 限制。\n\n【原本伺服器錯誤訊息】：${errMsg}`;
+  }
+
+  // 3. Rate Limit / Resource Exhausted (429)
+  if (
+    lowerMsg.includes("429") ||
+    lowerMsg.includes("resource_exhausted") ||
+    lowerMsg.includes("too many requests") ||
+    lowerMsg.includes("rate limit")
+  ) {
+    return "💡 頻率限制 (429 Too Many Requests)：\n您的 API 金鑰目前超出了 Google Gemini 的最高呼叫頻率，或是每日免費配額限制已耗盡。\n\n【解決方案】：\n請稍等 30-60 秒後，再點選該學生的考卷重試！或考慮至 AI 系統設定更換備份金鑰。";
+  }
+
+  // 4. OpenAI key issue
+  if (lowerMsg.includes("openai") && (lowerMsg.includes("api_key") || lowerMsg.includes("unauthorized") || lowerMsg.includes("401"))) {
+    return "💡 OpenAI 金鑰無效：\n請確認您的 OPENAI_API_KEY 餘額充足且未過期，或檢查金鑰複製是否完整。";
+  }
+
+  // Generic fallback with refined wording
+  return `💡 AI 連線或分析失敗：\n${errMsg}\n\n【排查方案】：請確認您的上傳格式，或直接點選學生的「個別手動修正」按鈕，即可繞過 AI 進行人工修正批改！`;
+}
+
 function getGeminiClient(): GoogleGenAI {
   if (!aiClient) {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -680,7 +726,12 @@ app.post("/api/analyze-prompt", async (req, res) => {
         return res.json(JSON.parse(response.text.trim()));
       }
     } catch (apiError: any) {
-      console.warn("API Call for Analyze Prompt failed, falling back to local simulation:", apiError.message);
+      console.warn("API Call for Analyze Prompt failed:", apiError.message);
+      if (hasOpenAIKey() || hasGeminiKey()) {
+        return res.status(500).json({
+          error: formatFriendlyError(apiError)
+        });
+      }
     }
 
     // Default simulation fallback
@@ -987,10 +1038,10 @@ Task:
         return res.json(sanitizeAndRecalculateScores(JSON.parse(response.text.trim())));
       }
     } catch (apiError: any) {
-      console.error("AI grading true call failed after retries:", apiError.message);
-      if (hasKeys && !manualText) {
+      console.error("AI grading true call failed after retries:", apiError.message || apiError);
+      if (hasKeys) {
         return res.status(500).json({
-          error: `AI 批改服務暫時無法連線（可能已達 API 頻率限制 429 ）。請稍候或點選該生重試。錯誤原因：${apiError.message || apiError}`
+          error: formatFriendlyError(apiError)
         });
       }
     }
