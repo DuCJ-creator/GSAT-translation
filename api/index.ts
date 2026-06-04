@@ -23,33 +23,69 @@ function hasOpenAIKey(): boolean {
   return typeof k === "string" && k.trim().length > 0 && k !== "undefined" && k !== "null" && !k.startsWith("MY_");
 }
 
-async function callOpenAI(systemInstruction: string, promptText: string): Promise<any> {
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemInstruction },
-        { role: "user", content: promptText }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.2
-    })
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`OpenAI API responded with code ${response.status}: ${errText}`);
+async function withRetries<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delayMs = 2000,
+  backoffFactor = 2
+): Promise<T> {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      attempt++;
+      const is429 = error.status === 429 || (error.message && (
+        error.message.includes("429") ||
+        error.message.toLowerCase().includes("too many requests") ||
+        error.message.includes("RESOURCE_EXHAUSTED") ||
+        error.message.includes("rate limit")
+      ));
+      
+      console.warn(`[API Attempt ${attempt}/${retries} failed] Error: ${error.message || error}. is429: ${is429}`);
+      
+      if (attempt >= retries) {
+        throw error;
+      }
+      
+      const waitTime = is429 ? delayMs * Math.pow(backoffFactor, attempt - 1) : delayMs;
+      console.log(`Waiting ${waitTime}ms before retry attempt ${attempt + 1}...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
   }
+}
 
-  const result = await response.json();
-  const content = result.choices?.[0]?.message?.content;
-  if (!content) throw new Error("Empty completion choice returned from OpenAI.");
-  return JSON.parse(content.trim());
+async function callOpenAI(systemInstruction: string, promptText: string): Promise<any> {
+  return withRetries(async () => {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemInstruction },
+          { role: "user", content: promptText }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.2
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      const err = new Error(`OpenAI API responded with code ${response.status}: ${errText}`);
+      (err as any).status = response.status;
+      throw err;
+    }
+
+    const result = await response.json();
+    const content = result.choices?.[0]?.message?.content;
+    if (!content) throw new Error("Empty completion choice returned from OpenAI.");
+    return JSON.parse(content.trim());
+  });
 }
 
 async function callOpenAIMultimodal(systemInstruction: string, promptText: string, image?: string): Promise<any> {
@@ -58,32 +94,36 @@ async function callOpenAIMultimodal(systemInstruction: string, promptText: strin
     contentParts.push({ type: "image_url", image_url: { url: image } });
   }
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemInstruction },
-        { role: "user", content: contentParts }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.1
-    })
+  return withRetries(async () => {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemInstruction },
+          { role: "user", content: contentParts }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.1
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      const err = new Error(`OpenAI Multimodal API responded with code ${response.status}: ${errText}`);
+      (err as any).status = response.status;
+      throw err;
+    }
+
+    const result = await response.json();
+    const content = result.choices?.[0]?.message?.content;
+    if (!content) throw new Error("Empty completion choice returned from OpenAI.");
+    return JSON.parse(content.trim());
   });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`OpenAI Multimodal API responded with code ${response.status}: ${errText}`);
-  }
-
-  const result = await response.json();
-  const content = result.choices?.[0]?.message?.content;
-  if (!content) throw new Error("Empty completion choice returned from OpenAI.");
-  return JSON.parse(content.trim());
 }
 
 // -------------------------------------------------------------
@@ -580,45 +620,47 @@ app.post("/api/analyze-prompt", async (req, res) => {
 
       if (hasGeminiKey()) {
         const ai = getGeminiClient();
-        const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
-          contents: `Analyze these two Chinese sentences for a GSAT English translation exercise.
+        const response = await withRetries(async () => {
+          return await ai.models.generateContent({
+            model: "gemini-3.5-flash",
+            contents: `Analyze these two Chinese sentences for a GSAT English translation exercise.
   Chinese Sentence 1: "${sentence1}"
   Chinese Sentence 2: "${sentence2}"
   Provide key structures, vocabulary, 3 reference translations each, and overall guidelines.`,
-          config: {
-            systemInstruction: "You are an elite bilingual English-Chinese GSAT teacher in Taiwan. Deliver structured, accurate analysis.",
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                sentence1Chinese: { type: Type.STRING },
-                sentence2Chinese: { type: Type.STRING },
-                sentence1Analysis: {
-                  type: Type.OBJECT,
-                  properties: {
-                    structures: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    vocabulary: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { word: { type: Type.STRING }, translation: { type: Type.STRING }, notes: { type: Type.STRING } }, required: ["word", "translation"] } },
-                    keys: { type: Type.ARRAY, items: { type: Type.STRING } }
+            config: {
+              systemInstruction: "You are an elite bilingual English-Chinese GSAT teacher in Taiwan. Deliver structured, accurate analysis.",
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                  sentence1Chinese: { type: Type.STRING },
+                  sentence2Chinese: { type: Type.STRING },
+                  sentence1Analysis: {
+                    type: Type.OBJECT,
+                    properties: {
+                      structures: { type: Type.ARRAY, items: { type: Type.STRING } },
+                      vocabulary: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { word: { type: Type.STRING }, translation: { type: Type.STRING }, notes: { type: Type.STRING } }, required: ["word", "translation"] } },
+                      keys: { type: Type.ARRAY, items: { type: Type.STRING } }
+                    },
+                    required: ["structures", "vocabulary", "keys"]
                   },
-                  required: ["structures", "vocabulary", "keys"]
-                },
-                sentence2Analysis: {
-                  type: Type.OBJECT,
-                  properties: {
-                    structures: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    vocabulary: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { word: { type: Type.STRING }, translation: { type: Type.STRING }, notes: { type: Type.STRING } }, required: ["word", "translation"] } },
-                    keys: { type: Type.ARRAY, items: { type: Type.STRING } }
+                  sentence2Analysis: {
+                    type: Type.OBJECT,
+                    properties: {
+                      structures: { type: Type.ARRAY, items: { type: Type.STRING } },
+                      vocabulary: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { word: { type: Type.STRING }, translation: { type: Type.STRING }, notes: { type: Type.STRING } }, required: ["word", "translation"] } },
+                      keys: { type: Type.ARRAY, items: { type: Type.STRING } }
+                    },
+                    required: ["structures", "vocabulary", "keys"]
                   },
-                  required: ["structures", "vocabulary", "keys"]
+                  referenceTranslations1: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  referenceTranslations2: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  overallFulfillmentKeys: { type: Type.ARRAY, items: { type: Type.STRING } }
                 },
-                referenceTranslations1: { type: Type.ARRAY, items: { type: Type.STRING } },
-                referenceTranslations2: { type: Type.ARRAY, items: { type: Type.STRING } },
-                overallFulfillmentKeys: { type: Type.ARRAY, items: { type: Type.STRING } }
-              },
-              required: ["sentence1Chinese", "sentence2Chinese", "sentence1Analysis", "sentence2Analysis", "referenceTranslations1", "referenceTranslations2", "overallFulfillmentKeys"]
+                required: ["sentence1Chinese", "sentence2Chinese", "sentence1Analysis", "sentence2Analysis", "referenceTranslations1", "referenceTranslations2", "overallFulfillmentKeys"]
+              }
             }
-          }
+          });
         });
 
         if (!response.text) throw new Error("No response content from Gemini.");
@@ -739,6 +781,8 @@ Task:
 - Score both S1 and S2 under the rubrics rules specified in your system instructions. If the text transcription is empty or represents "No translation submitted", the score is EXACTLY 0.0.
 `;
 
+    const hasKeys = hasOpenAIKey() || hasGeminiKey();
+
     try {
       if (hasOpenAIKey()) {
         try {
@@ -750,6 +794,9 @@ Task:
           return res.json(data);
         } catch (err: any) {
           console.error("OpenAI grading failed, trying Gemini:", err.message);
+          if (!hasGeminiKey()) {
+            throw err;
+          }
         }
       }
 
@@ -762,41 +809,48 @@ Task:
         }
         parts.push({ text: gradingPrompt });
 
-        const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
-          contents: { parts },
-          config: {
-            systemInstruction: gradingSystemPrompt,
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                detectedSeatNumber: { type: Type.INTEGER },
-                ocrSentence1: { type: Type.STRING },
-                ocrSentence2: { type: Type.STRING },
-                score1: { type: Type.NUMBER },
-                score2: { type: Type.NUMBER },
-                totalScore: { type: Type.NUMBER },
-                errors1: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { originalSegment: { type: Type.STRING }, suggestedSegment: { type: Type.STRING }, errorType: { type: Type.STRING }, explanation: { type: Type.STRING }, pointsDeducted: { type: Type.NUMBER } }, required: ["originalSegment", "suggestedSegment", "errorType", "explanation", "pointsDeducted"] } },
-                errors2: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { originalSegment: { type: Type.STRING }, suggestedSegment: { type: Type.STRING }, errorType: { type: Type.STRING }, explanation: { type: Type.STRING }, pointsDeducted: { type: Type.NUMBER } }, required: ["originalSegment", "suggestedSegment", "errorType", "explanation", "pointsDeducted"] } },
-                feedback1: { type: Type.STRING },
-                feedback2: { type: Type.STRING },
-                improvedVersion: { type: Type.STRING },
-                majorIssues: { type: Type.STRING }
-              },
-              required: ["ocrSentence1", "ocrSentence2", "score1", "score2", "totalScore", "errors1", "errors2", "feedback1", "feedback2", "improvedVersion", "majorIssues"]
+        const response = await withRetries(async () => {
+          return await ai.models.generateContent({
+            model: "gemini-3.5-flash",
+            contents: { parts },
+            config: {
+              systemInstruction: gradingSystemPrompt,
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                  detectedSeatNumber: { type: Type.INTEGER },
+                  ocrSentence1: { type: Type.STRING },
+                  ocrSentence2: { type: Type.STRING },
+                  score1: { type: Type.NUMBER },
+                  score2: { type: Type.NUMBER },
+                  totalScore: { type: Type.NUMBER },
+                  errors1: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { originalSegment: { type: Type.STRING }, suggestedSegment: { type: Type.STRING }, errorType: { type: Type.STRING }, explanation: { type: Type.STRING }, pointsDeducted: { type: Type.NUMBER } }, required: ["originalSegment", "suggestedSegment", "errorType", "explanation", "pointsDeducted"] } },
+                  errors2: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { originalSegment: { type: Type.STRING }, suggestedSegment: { type: Type.STRING }, errorType: { type: Type.STRING }, explanation: { type: Type.STRING }, pointsDeducted: { type: Type.NUMBER } }, required: ["originalSegment", "suggestedSegment", "errorType", "explanation", "pointsDeducted"] } },
+                  feedback1: { type: Type.STRING },
+                  feedback2: { type: Type.STRING },
+                  improvedVersion: { type: Type.STRING },
+                  majorIssues: { type: Type.STRING }
+                },
+                required: ["ocrSentence1", "ocrSentence2", "score1", "score2", "totalScore", "errors1", "errors2", "feedback1", "feedback2", "improvedVersion", "majorIssues"]
+              }
             }
-          }
+          });
         });
 
         if (!response.text) throw new Error("Empty response from Gemini.");
         return res.json(JSON.parse(response.text.trim()));
       }
     } catch (apiError: any) {
-      console.warn("AI grading call failed, falling back to simulation engine gracefully:", apiError.message);
+      console.error("AI grading true call failed after retries:", apiError.message);
+      if (hasKeys && !manualText) {
+        return res.status(500).json({
+          error: `AI 批改服務暫時無法連線（可能已達 API 頻率限制 429 ）。請稍候或點選該生重試。錯誤原因：${apiError.message || apiError}`
+        });
+      }
     }
 
-    // Graceful fallback if AI keys are missing or API calls fail
+    // Graceful fallback ONLY if AI keys are missing OR if manualText is provided enabling high-fidelity offline simulation
     return res.json(getFallbackGrading(seatNumber, manualText, promptAnalysis));
   } catch (error: any) {
     console.error("General error in /api/grade-student:", error);
