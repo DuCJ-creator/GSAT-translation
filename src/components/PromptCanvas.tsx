@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { DEMO_PROMPTS, DemoPrompt } from "../data/demoSubmissions";
 import { PromptAnalysis } from "../types";
 import { LangType, getTranslation } from "../lib/translations";
@@ -11,10 +11,20 @@ interface PromptCanvasProps {
 }
 
 export default function PromptCanvas({ onAnalysisGenerated, currentAnalysis, lang = "bilingual" }: PromptCanvasProps) {
-  const [sentence1, setSentence1] = useState<string>("");
-  const [sentence2, setSentence2] = useState<string>("");
+  const [sentence1, setSentence1] = useState<string>(DEMO_PROMPTS[0].sentence1Chinese);
+  const [sentence2, setSentence2] = useState<string>(DEMO_PROMPTS[0].sentence2Chinese);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [showConfig, setShowConfig] = useState<boolean>(true);
+
+  // Auto-collapse setting when prompt analysis has loaded
+  useEffect(() => {
+    if (currentAnalysis) {
+      setShowConfig(false);
+    } else {
+      setShowConfig(true);
+    }
+  }, [currentAnalysis]);
 
   const handleAnalyze = async () => {
     if (!sentence1.trim() || !sentence2.trim()) {
@@ -61,75 +71,126 @@ export default function PromptCanvas({ onAnalysisGenerated, currentAnalysis, lan
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Input Textboxes */}
-        <div className="space-y-3">
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-semibold text-slate-600">
-                {lang === "zh" ? "中文第一句" : lang === "en" ? "Sentence 1 (Ch)" : "中文第一句 (Sentence 1)"}
-              </span>
-              <span className="text-[10px] text-slate-400 font-mono">Weight: 4.0 Pts</span>
+        {currentAnalysis && !showConfig ? (
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="space-y-1 overflow-hidden">
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">當前定位翻譯考題 (ACTIVE PROMPTS)</p>
+              <div className="font-sans text-slate-700 space-y-0.5">
+                <div className="flex items-center gap-1">
+                  <span className="bg-slate-200 text-slate-600 px-1 py-0.2 rounded text-[8px] font-extrabold shrink-0">1</span>
+                  <span className="truncate font-semibold text-slate-800" title={sentence1}>{sentence1}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="bg-slate-200 text-slate-600 px-1 py-0.2 rounded text-[8px] font-extrabold shrink-0">2</span>
+                  <span className="truncate font-semibold text-slate-800" title={sentence2}>{sentence2}</span>
+                </div>
+              </div>
             </div>
-            <textarea
-              value={sentence1}
-              onChange={(e) => {
-                setSentence1(e.target.value);
-              }}
-              rows={2}
-              className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-slate-50/50"
-              placeholder={lang === "en" ? "Enter Chinese Sentence 1" : "例如：許多學生在選擇大學學系時會感到焦慮與迷惘。"}
-            />
+            <button
+              type="button"
+              onClick={() => setShowConfig(true)}
+              className="text-teal-700 hover:text-white font-bold flex items-center gap-1.5 py-1.5 px-3.5 rounded bg-white hover:bg-teal-600 border border-slate-200 cursor-pointer text-xs shrink-0 transition-all shadow-xs hover:shadow-sm"
+            >
+              ✏️ 重新修正考題 (Edit)
+            </button>
           </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-semibold text-slate-600">
-                {lang === "zh" ? "中文第二句" : lang === "en" ? "Sentence 2 (Ch)" : "中文第二句 (Sentence 2)"}
+        ) : (
+          <>
+            {/* Preset Selector Dropdown */}
+            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5 shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                {lang === "zh" ? "💡 快速載入常用大考翻譯題庫：" : "💡 Quick Load Exam Prompts:"}
               </span>
-              <span className="text-[10px] text-slate-400 font-mono">Weight: 4.0 Pts</span>
+              <select
+                onChange={(e) => {
+                  const selected = DEMO_PROMPTS.find(p => p.id === e.target.value);
+                  if (selected) {
+                    setSentence1(selected.sentence1Chinese);
+                    setSentence2(selected.sentence2Chinese);
+                    setError(null);
+                  }
+                }}
+                defaultValue="univ"
+                className="text-xs bg-white border border-slate-250 hover:border-slate-300 rounded-md px-2 py-1.5 font-bold text-slate-850 focus:ring-1 focus:ring-emerald-500 cursor-pointer w-full sm:w-auto"
+              >
+                {DEMO_PROMPTS.map(p => (
+                  <option key={p.id} value={p.id}>{p.tag}</option>
+                ))}
+              </select>
             </div>
-            <textarea
-              value={sentence2}
-              onChange={(e) => {
-                setSentence2(e.target.value);
-              }}
-              rows={2}
-              className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-outline focus:ring-1 focus:ring-emerald-500 bg-slate-50/50"
-              placeholder={lang === "en" ? "Enter Chinese Sentence 2" : "例如：然而，透過自我探索和諮詢專家，他們能做出更合適的決定。"}
-            />
-          </div>
-        </div>
 
-        {/* Error messaging */}
-        {error && (
-          <div className="flex items-start gap-2 bg-rose-50 border border-rose-200 text-rose-800 p-2.5 rounded-lg text-xs">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <p>{error}</p>
-          </div>
+            {/* Input Textboxes */}
+            <div className="space-y-3">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-slate-600">
+                    {lang === "zh" ? "中文第一句" : lang === "en" ? "Sentence 1 (Ch)" : "中文第一句 (Sentence 1)"}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">Weight: 4.0 Pts</span>
+                </div>
+                <textarea
+                  value={sentence1}
+                  onChange={(e) => {
+                    setSentence1(e.target.value);
+                  }}
+                  rows={2}
+                  className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-slate-50/50"
+                  placeholder={lang === "en" ? "Enter Chinese Sentence 1" : "例如：許多學生在選擇大學學系時會感到焦慮與迷惘。"}
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-slate-600">
+                    {lang === "zh" ? "中文第二句" : lang === "en" ? "Sentence 2 (Ch)" : "中文第二句 (Sentence 2)"}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">Weight: 4.0 Pts</span>
+                </div>
+                <textarea
+                  value={sentence2}
+                  onChange={(e) => {
+                    setSentence2(e.target.value);
+                  }}
+                  rows={2}
+                  className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-outline focus:ring-1 focus:ring-emerald-500 bg-slate-50/50"
+                  placeholder={lang === "en" ? "Enter Chinese Sentence 2" : "例如：然而，透過自我探索和諮詢專家，他們能做出更合適的決定。"}
+                />
+              </div>
+            </div>
+
+            {/* Error messaging */}
+            {error && (
+              <div className="flex items-start gap-2 bg-rose-50 border border-rose-200 text-rose-800 p-2.5 rounded-lg text-xs">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <p>{error}</p>
+              </div>
+            )}
+
+            {/* Action Button */}
+            <button
+              onClick={handleAnalyze}
+              disabled={isAnalyzing}
+              className={`w-full py-2 px-4 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                isAnalyzing
+                  ? "bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed"
+                  : "bg-teal-600 hover:bg-teal-700 text-white shadow-xscursor-pointer"
+              }`}
+            >
+              {isAnalyzing ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-slate-400" />
+                  {lang === "zh" ? "正在調用學術 AI 進行多維度分析中..." : lang === "en" ? "Calling specialized AI for multi-dimensional analysis..." : "正在調用學術 AI 進行多維度分析中 (Analyzing with AI...)"}
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  {lang === "zh" ? "設定考題並啟動 AI 關鍵點分析" : lang === "en" ? "Set Prompt & Fire AI Metric Parsing" : "設定考題並啟動 AI 關鍵點分析 (Set Prompt & Analyze)"}
+                </>
+              )}
+            </button>
+          </>
         )}
-
-        {/* Action Button */}
-        <button
-          onClick={handleAnalyze}
-          disabled={isAnalyzing}
-          className={`w-full py-2 px-4 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
-            isAnalyzing
-              ? "bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed"
-              : "bg-teal-600 hover:bg-teal-700 text-white shadow-xs"
-          }`}
-        >
-          {isAnalyzing ? (
-            <>
-              <RefreshCw className="w-4 h-4 animate-spin text-slate-400" />
-              {lang === "zh" ? "正在調用學術 AI 進行多維度分析中..." : lang === "en" ? "Calling specialized AI for multi-dimensional analysis..." : "正在調用學術 AI 進行多維度分析中 (Analyzing with AI...)"}
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-4 h-4" />
-              {lang === "zh" ? "設定考題並啟動 AI 關鍵點分析" : lang === "en" ? "Set Prompt & Fire AI Metric Parsing" : "設定考題並啟動 AI 關鍵點分析 (Set Prompt & Analyze)"}
-            </>
-          )}
-        </button>
 
         {/* Prompt Canvas Output */}
         {currentAnalysis ? (
