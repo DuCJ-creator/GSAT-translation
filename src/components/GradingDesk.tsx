@@ -339,6 +339,68 @@ export default function GradingDesk({
         {student.status === "graded" ? (
           <div className="space-y-4">
             
+            {/* Inline Helper Box for manual adjustments & individual reset */}
+            <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 shadow-xs space-y-2.5">
+              <div className="text-left space-y-1">
+                <span className="font-bold text-amber-900 flex items-center gap-1.5 text-xs">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  手寫字跡太草致 OCR 辨識有誤？
+                </span>
+                <p className="text-slate-600 text-[11px] leading-relaxed">
+                  大考 OCR 有時會因拍照反光或草寫而有些微出入。您可以點選下方<b>「手動修正」</b>在左側編輯學生真正的作答內容並<b>重新送出評分</b>；或者點選<b>「個別重置」</b>將此座號退回至初始待評狀態。
+                </p>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInputMode("text");
+                    if (!typedText.trim()) {
+                      const sentencesText = `${student.ocrSentence1 || ""}\n${student.ocrSentence2 || ""}`;
+                      setTypedText(sentencesText);
+                    }
+                    const elem = document.getElementById("desk-workspace");
+                    if (elem) elem.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] rounded-md cursor-pointer transition-colors"
+                >
+                  📝 手動修正學生的翻譯
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm(`確認要清除第 ${activeSeat} 號學生的評分，重新輸入嗎？`)) {
+                      const resetStudent: StudentGrading = {
+                        seatNumber: activeSeat,
+                        status: "present",
+                        ocrSentence1: undefined,
+                        ocrSentence2: undefined,
+                        score1: undefined,
+                        score2: undefined,
+                        totalScore: undefined,
+                        errors1: undefined,
+                        errors2: undefined,
+                        feedback1: undefined,
+                        feedback2: undefined,
+                        improvedVersion: undefined,
+                        majorIssues: undefined,
+                        studentInputImage: undefined,
+                        fileName: undefined
+                      };
+                      onGradingComplete(resetStudent);
+                      setTypedText("");
+                      setAttachedImage(null);
+                      setImageName("");
+                    }
+                  }}
+                  className="px-2.5 py-1 bg-rose-50 border border-rose-200 text-rose-700 font-bold hover:bg-rose-100 text-[10px] rounded-md cursor-pointer transition-colors flex items-center gap-1"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  個別重置
+                </button>
+              </div>
+            </div>
+
             {/* Score Summary Billboard card */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="bg-slate-900 p-3 flex items-center justify-between text-white">
