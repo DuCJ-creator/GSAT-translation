@@ -218,12 +218,21 @@ export async function exportAnnotatedReportsPdf(
         const img = new Image();
         img.src = student.studentInputImage;
         await new Promise((resolve) => {
+          const timeout = setTimeout(() => {
+            resolve(false);
+          }, 600);
           img.onload = () => {
-            ctx.drawImage(img, 75, 225, 1050, 225);
-            imageLoaded = true;
+            clearTimeout(timeout);
+            try {
+              ctx.drawImage(img, 75, 225, 1050, 225);
+              imageLoaded = true;
+            } catch (drawErr) {
+              console.warn("Failed drawing image inside onload:", drawErr);
+            }
             resolve(true);
           };
           img.onerror = () => {
+            clearTimeout(timeout);
             resolve(false);
           };
         });
