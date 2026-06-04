@@ -383,6 +383,7 @@ export default function BatchGradingDesk({
         seatNumber: f.seatNumber,
         fileName: f.name,
         image: svgUri,
+        manualText: textInput,
         status: "idle" as const
       };
     });
