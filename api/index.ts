@@ -639,7 +639,7 @@ app.post("/api/analyze-prompt", async (req, res) => {
             contents: `Analyze these two Chinese sentences for a GSAT English translation exercise.
   Chinese Sentence 1: "${sentence1}"
   Chinese Sentence 2: "${sentence2}"
-  Provide key structures, vocabulary, 3 reference translations each, and overall guidelines.`,
+  Provide key structures, academic vocabulary, and at least 3-4 diverse, correct translation options for reference (which can use different structures, tenses, or vocabulary).`,
             config: {
               systemInstruction: "You are an elite bilingual English-Chinese GSAT teacher in Taiwan. Deliver structured, accurate analysis.",
               responseMimeType: "application/json",
@@ -877,6 +877,10 @@ You are an elite English teacher evaluating a Taiwanese high school student's tr
    - Correct Structure: Ensure sentences have complete subjects and verbs, and tenses match perfectly.
    - Vocabulary & Spelling: Pay close attention to spelling. Ensure vocabulary parts of speech match requirements of the sentence pattern perfectly.
    - Fluency & Clarity: Avoid word-for-word translation (Chinglish) at all costs. The translated version should align with natural English idiomatic usage.
+7. FLEXIBILITY & MULTIPLE VALID TRANSLATIONS (CRITICAL):
+   - Always remember there are multiple correct ways to translate a sentence. The student's answer do NOT need to match or be similar to the provided reference translations.
+   - The primary criteria when grading are: Does the sentence make logical sense? Is it grammatically correct according to English rules? Does it sound natural as an English sentence?
+   - If the student's translation is grammatically sound, is semantically accurate to the Chinese prompt, and uses natural phrasing or acceptable synonyms, they MUST receive full marks (4.0/4.0) even if their answer is different from the reference translations in structure or vocabulary. Do NOT deduct points for variations that are correct under standard English grammar.
 
 Return a raw JSON object with this shape:
 {
