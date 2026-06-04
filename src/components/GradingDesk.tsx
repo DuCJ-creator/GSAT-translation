@@ -302,8 +302,8 @@ export default function GradingDesk({
           {/* Local validation error banner */}
           {localError && (
             <div className="flex items-start gap-2 bg-rose-50 border border-rose-200 text-rose-800 p-2.5 rounded-lg text-xs">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <p>{localError}</p>
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+              <div className="whitespace-pre-wrap leading-relaxed font-normal">{localError}</div>
             </div>
           )}
 
