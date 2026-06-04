@@ -26,9 +26,9 @@ export const TRANSLATIONS: TranslationDictionary = {
 
   // Navigation Header
   "navTitle": {
-    zh: "ClassTranslate AI > 學測翻譯題班級批改器",
-    en: "ClassTranslate AI > 學測翻譯題班級批改器",
-    bi: "ClassTranslate AI > 學測翻譯題班級批改器"
+    zh: "高中學測中英翻譯(GSAT C-E Translation). 紅筆對照與評鑑表",
+    en: "高中學測中英翻譯(GSAT C-E Translation). 紅筆對照與評鑑表",
+    bi: "高中學測中英翻譯(GSAT C-E Translation). 紅筆對照與評鑑表"
   },
   "navSubtitle": {
     zh: "Designed by Shirley Du",
