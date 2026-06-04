@@ -652,7 +652,7 @@ export default function App() {
                 <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-6">
                   <div>
                     <h2 className="text-xl font-bold tracking-tight text-slate-900">
-                      中華民國大學學測 (GSAT) 英文寫作翻譯 · 智能紅筆對照與評鑑表
+                      高中學測中英翻譯(GSAT C-E Translation). 紅筆對照與評鑑表
                     </h2>
                     <p className="text-xs text-slate-500 mt-1 font-mono">
                       GSAT ENGLISH TRANSLATION INTELLIGENT FEEDBACK & SCORE SHEET
