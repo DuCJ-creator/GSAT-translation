@@ -153,6 +153,64 @@ export default function BatchGradingDesk({
     };
   };
 
+  // Helper to manually retry grading for a single seat
+  const handleRetryForSeat = async (seatNumber: number) => {
+    const queueItem = processQueue.find(q => q.seatNumber === seatNumber);
+    if (!queueItem) {
+      addLog(`⚠️ 找不到座號 #${seatNumber} 的佇列項目。`);
+      return;
+    }
+
+    addLog(`🔄 正在手動重新呼叫評卷座號 #${seatNumber}...`);
+    
+    // Set status to grading
+    setProcessQueue(prev => 
+      prev.map(q => q.seatNumber === seatNumber ? { ...q, status: "grading", progress: "正在重新評閱...", errorMsg: undefined } : q)
+    );
+    
+    onSetStudents(prev => 
+      prev.map(s => s.seatNumber === seatNumber ? { ...s, status: "grading" } : s)
+    );
+
+    try {
+      const result = await gradeSingleStudent(
+        seatNumber,
+        queueItem.image || null,
+        queueItem.manualText || null
+      );
+
+      // Complete in react state
+      onGradingComplete(result);
+
+      setProcessQueue(prev => 
+        prev.map(q => q.seatNumber === seatNumber ? { 
+          ...q, 
+          status: "graded", 
+          progress: "Done", 
+          score: `${result.totalScore?.toFixed(1)} 分`,
+          errorMsg: undefined
+        } : q)
+      );
+      addLog(`✅ 座號 #${seatNumber} 重新評估完畢：${result.totalScore?.toFixed(1)}分`);
+    } catch (err: any) {
+      console.error(err);
+      onGradingComplete({
+        seatNumber: seatNumber,
+        status: "failed"
+      });
+
+      setProcessQueue(prev => 
+        prev.map(q => q.seatNumber === seatNumber ? { 
+          ...q, 
+          status: "failed", 
+          progress: "Error", 
+          errorMsg: err.message || "重新評估錯誤"
+        } : q)
+      );
+      addLog(`❌ 座號 #${seatNumber} 重新評估失敗：${err.message || "連線錯誤"}`);
+    }
+  };
+
   // Run the batch pipeline with queue control (concurrency: 3)
   const runBatchPipeline = async (itemsToProcess: QueuedStudent[]) => {
     if (!promptAnalysis) {
@@ -247,6 +305,11 @@ export default function BatchGradingDesk({
             executeNext();
           }
         })(nextItem);
+
+        // Stagger launcher check to spread rate limits slightly (1200ms)
+        if (uncompleted.length > 0 && workingPool.size < CONCURRENCY_LIMIT) {
+          await new Promise(resolve => setTimeout(resolve, 1200));
+        }
       }
     };
 
@@ -803,14 +866,27 @@ export default function BatchGradingDesk({
                   {processQueue.map((item, idx) => (
                     <div 
                       key={item.id || `${item.seatNumber}-${idx}`} 
-                      onClick={() => item.status === "graded" && onSelectSeat(item.seatNumber)}
+                      onClick={() => {
+                        if (item.status === "graded") {
+                          onSelectSeat(item.seatNumber);
+                        } else if (item.status === "failed") {
+                          handleRetryForSeat(item.seatNumber);
+                        }
+                      }}
+                      title={
+                        item.status === "failed" 
+                          ? `錯誤原因: ${item.errorMsg || '點擊手動重試'}` 
+                          : item.status === "graded" 
+                          ? "點擊選取檢視評閱報告" 
+                          : "等待中/評分中..."
+                      }
                       className={`p-1 text-center rounded-md border font-mono text-[10.5px] cursor-pointer transition-all ${
                         item.status === "grading"
                           ? "bg-amber-950/50 border-amber-600 text-amber-200 animate-pulse"
                           : item.status === "graded"
                           ? "bg-emerald-950/50 border-emerald-600 text-emerald-200 hover:bg-emerald-900/60"
                           : item.status === "failed"
-                          ? "bg-rose-950/50 border-rose-600 text-rose-200"
+                          ? "bg-rose-950/50 border-rose-600 text-rose-200 hover:bg-rose-900/60"
                           : "bg-slate-950/30 border-slate-800 text-slate-500"
                       }`}
                     >
@@ -818,7 +894,7 @@ export default function BatchGradingDesk({
                       <div className="text-[8.5px] mt-0.5 truncate font-medium">
                         {item.status === "grading" && "評分中..."}
                         {item.status === "graded" && (item.score || "✓")}
-                        {item.status === "failed" && "❌ 錯誤"}
+                        {item.status === "failed" && "❌ 重試"}
                         {item.status === "idle" && "佇列中"}
                       </div>
                     </div>
