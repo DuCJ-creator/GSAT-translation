@@ -378,31 +378,60 @@ function getFallbackGrading(seatNumber: number, manualText: string, promptAnalys
     };
   }
 
-  if (isUnivPrompt && parsedSeat >= 1) {
-    const mappedSeat = ((parsedSeat - 1) % 5) + 1;
-    const preset = FALLBACK_STUDENT_GRADINGS_UNIV[mappedSeat];
-    if (preset) {
-      const parts = cleanText.split('\n').map(l => l.trim()).filter(Boolean);
-      const text1 = parts[0] || "No translation submitted for Sentence 1.";
-      const text2 = parts[1] || "No translation submitted for Sentence 2.";
-      const s1Score = parts[0] ? preset.score1 : 0.0;
-      const s2Score = parts[1] ? preset.score2 : 0.0;
-      return {
-        ...preset,
-        ocrSentence1: text1,
-        ocrSentence2: text2,
-        score1: s1Score,
-        score2: s2Score,
-        totalScore: s1Score + s2Score,
-        detectedSeatNumber: parsedSeat,
-        feedback1: parts[0] ? preset.feedback1 : "未填寫第一句翻譯。",
-        feedback2: parts[1] ? preset.feedback2 : "未填寫第二句翻譯。",
-        majorIssues: (s1Score === 0 || s2Score === 0) ? "⚠️ 部份句子未偵測到作答內容。" : preset.majorIssues
-      };
+  // 1. Helper to normalize text for preset matching
+  const isTextMatchingPreset = (inputText: string, presetText: string): boolean => {
+    const normInput = inputText.replace(/[^a-zA-Z]/g, "").toLowerCase();
+    const normPreset = presetText.replace(/[^a-zA-Z]/g, "").toLowerCase();
+    return normInput === normPreset;
+  };
+
+  // 2. Check if the submitted text exactly matches one of our predefined preset submissions
+  let matchedSeatPreset: any = null;
+  if (isUnivPrompt) {
+    for (let s = 1; s <= 5; s++) {
+      const preset = FALLBACK_STUDENT_GRADINGS_UNIV[s];
+      if (preset) {
+        const presetFullText = (preset.ocrSentence1 || "") + "\n" + (preset.ocrSentence2 || "");
+        if (
+          isTextMatchingPreset(cleanText, presetFullText) ||
+          isTextMatchingPreset(cleanText, preset.ocrSentence1 || "") ||
+          isTextMatchingPreset(cleanText, preset.ocrSentence2 || "") ||
+          (cleanText.toLowerCase().replace(/\s+/g, "").includes((preset.ocrSentence1 || "").toLowerCase().replace(/\s+/g, "")) &&
+           cleanText.toLowerCase().replace(/\s+/g, "").includes((preset.ocrSentence2 || "").toLowerCase().replace(/\s+/g, "")))
+        ) {
+          matchedSeatPreset = preset;
+          break;
+        }
+      }
     }
   }
 
-  const lines = cleanText.split('\n').map((l: string) => l.trim()).filter(Boolean);
+  if (matchedSeatPreset) {
+    // Separate into individual lines for empty line validation
+    const parts = cleanText.split("\n").map(l => l.trim()).filter(Boolean);
+    const text1 = parts[0] || "No translation submitted for Sentence 1.";
+    const text2 = parts[1] || "No translation submitted for Sentence 2.";
+    const s1Score = parts[0] ? matchedSeatPreset.score1 : 0.0;
+    const s2Score = parts[1] ? matchedSeatPreset.score2 : 0.0;
+
+    return {
+      ...matchedSeatPreset,
+      detectedSeatNumber: parsedSeat,
+      ocrSentence1: text1,
+      ocrSentence2: text2,
+      score1: s1Score,
+      score2: s2Score,
+      totalScore: s1Score + s2Score,
+      errors1: parts[0] ? matchedSeatPreset.errors1 : [],
+      errors2: parts[1] ? matchedSeatPreset.errors2 : [],
+      feedback1: parts[0] ? matchedSeatPreset.feedback1 : "未填寫第一句翻譯。",
+      feedback2: parts[1] ? matchedSeatPreset.feedback2 : "未填寫第二句翻譯。",
+      majorIssues: (s1Score === 0 || s2Score === 0) ? "⚠️ 部份句子未偵測到作答內容。" : matchedSeatPreset.majorIssues
+    };
+  }
+
+  // 3. Dynamic rule evaluation for custom inputs
+  const lines = cleanText.split("\n").map((l: string) => l.trim()).filter(Boolean);
   const s1Text = lines[0] || "";
   const s2Text = lines[1] || "";
 
@@ -419,6 +448,26 @@ function getFallbackGrading(seatNumber: number, manualText: string, promptAnalys
       errors1.push({ originalSegment: "anxius", suggestedSegment: "anxious", errorType: "Spelling", explanation: "拼寫錯誤，少了一個 'o'。應為 anxious。", pointsDeducted: 0.5 });
       score1 -= 0.5;
     }
+    if (/(many|lots of|numerous|most of)\s+student\b/i.test(s1Text)) {
+      errors1.push({ originalSegment: "student", suggestedSegment: "students", errorType: "Grammar", explanation: "複數修飾詞後的可數名詞「學生」應使用複數型 (students)。", pointsDeducted: 0.5 });
+      score1 -= 0.5;
+    }
+    if (/feel\s+lose\b/i.test(s1Text) || /felt\s+lose\b/i.test(s1Text)) {
+      errors1.push({ originalSegment: "lose", suggestedSegment: "lost", errorType: "Word Choice", explanation: "感到迷惘，英文習慣使用形容詞 lost。lose 為動詞「失去」，在此屬詞性誤用。", pointsDeducted: 0.5 });
+      score1 -= 0.5;
+    }
+    if (/in\s+select\s+/i.test(s1Text) || /in\s+select$/i.test(s1Text)) {
+      errors1.push({ originalSegment: "in select", suggestedSegment: "when selecting", errorType: "Structure", explanation: "介名詞 in 後不可接原形動詞 select。請使用動名詞 selecting 或時間子句 when selecting。", pointsDeducted: 0.5 });
+      score1 -= 0.5;
+    }
+    if (/\bdepart\b/i.test(s1Text)) {
+      errors1.push({ originalSegment: "depart", suggestedSegment: "department", errorType: "Word Choice", explanation: "修飾大學學系，應使用名詞 department；depart 為動詞「出發/起飛」。", pointsDeducted: 0.5 });
+      score1 -= 0.5;
+    }
+    if (/during\s+they\b/i.test(s1Text)) {
+      errors1.push({ originalSegment: "during they are choosing", suggestedSegment: "while they are choosing", errorType: "Grammar", explanation: "during 為介系詞，後面不可直接接主動賓子句。請改用連接詞 while 或是 when。", pointsDeducted: 0.5 });
+      score1 -= 0.5;
+    }
     score1 = Math.max(0.5, score1);
   }
 
@@ -427,12 +476,45 @@ function getFallbackGrading(seatNumber: number, manualText: string, promptAnalys
       errors2.push({ originalSegment: "i", suggestedSegment: "I", errorType: "Grammar", explanation: "第一人稱代名詞 'I' 均必須強制大寫。", pointsDeducted: 0.5 });
       score2 -= 0.5;
     }
-    if (/Never the less/i.test(s2Text)) {
-      errors2.push({ originalSegment: "Never the less", suggestedSegment: "Nevertheless", errorType: "Spelling", explanation: "副詞 Nevertheless 應為單一單字，不可拆成三個單詞撰寫。", pointsDeducted: 0.5 });
+    if (/Never\s+the\s+less/i.test(s2Text)) {
+      errors2.push({ originalSegment: "Never the less", suggestedSegment: "Nevertheless", errorType: "Spelling", explanation: "副詞 Nevertheless 應為單一單字，不可拆分成三個單詞撰寫。", pointsDeducted: 0.5 });
+      score2 -= 0.5;
+    }
+    if (/exports/i.test(s2Text)) {
+      errors2.push({ originalSegment: "exports", suggestedSegment: "experts", errorType: "Spelling", explanation: "諮詢專家拼寫混淆。exports 代表「出口貨品」，專家則為 experts。", pointsDeducted: 0.5 });
+      score2 -= 0.5;
+    }
+    if (/make\s+(\w+\s+)?decide\b/i.test(s2Text)) {
+      const match = s2Text.match(/make\s+(\w+\s+)?decide\b/i);
+      errors2.push({ originalSegment: match ? match[0] : "decide", suggestedSegment: "make decision", errorType: "Grammar", explanation: "make 後接形容詞修飾時，必須使用名詞型態 decision；decide 為動詞形式，詞性錯誤。", pointsDeducted: 0.5 });
+      score2 -= 0.5;
+    }
+    if (/auto\s+exploration/i.test(s2Text)) {
+      errors2.push({ originalSegment: "auto exploration", suggestedSegment: "self-exploration", errorType: "Word Choice", explanation: "自我探索語境慣用 self-exploration。auto 通常指機械式自動化。", pointsDeducted: 0.5 });
+      score2 -= 0.5;
+    }
+    if (/across\s+self/i.test(s2Text)) {
+      errors2.push({ originalSegment: "across", suggestedSegment: "through", errorType: "Word Choice", explanation: "表達『透過...手段』，應選用介系詞 through，而非空間上的 across。", pointsDeducted: 0.5 });
+      score2 -= 0.5;
+    }
+    if (/consulting\s+advisor\b/i.test(s2Text) && !/advisors/i.test(s2Text)) {
+      errors2.push({ originalSegment: "advisor", suggestedSegment: "advisors", errorType: "Grammar", explanation: "advisor 為可數名詞，在無冠詞修飾時應採用複數 advisors 以符泛指文法常規。", pointsDeducted: 0.5 });
       score2 -= 0.5;
     }
     score2 = Math.max(0.5, score2);
   }
+
+  const s1Feedback = s1Text
+    ? (score1 === 4.0
+        ? "翻譯非常優秀，句型結構流暢且用字精準，完全符合大考高分指標。"
+        : `文法與句型尚可，惟有由 ${errors1.length} 處拼寫或文法微疵所引起之點數扣除。`)
+    : "未偵測到此句之作答內容。";
+
+  const s2Feedback = s2Text
+    ? (score2 === 4.0
+        ? "轉折詞與搭配詞拿捏極佳，轉折語氣表達流暢且無語法盲點。"
+        : `語意表達尚算完整，但有多處 (共 ${errors2.length} 處) 包含介系詞、名詞詞性等細節盲區需要修磨。`)
+    : "未偵測到此句之作答內容。";
 
   return {
     detectedSeatNumber: parsedSeat,
@@ -443,10 +525,14 @@ function getFallbackGrading(seatNumber: number, manualText: string, promptAnalys
     totalScore: score1 + score2,
     errors1,
     errors2,
-    feedback1: s1Text ? (score1 === 4.0 ? "翻譯完成度與流暢度很高，單字選用極佳。" : "基本架構掌握度不錯，但細微語法方面仍有精進空間。") : "未偵測到作答字元 (No translation submitted).",
-    feedback2: s2Text ? (score2 === 4.0 ? "語意通順地道，轉折語氣與大考字彙配合度極好。" : "轉折連詞位置正確，惟須額外注意可數名詞單複數一致性。") : "未偵測到作答字元 (No translation submitted).",
-    improvedVersion: (promptAnalysis.referenceTranslations1?.[0] || "") + " " + (promptAnalysis.referenceTranslations2?.[0] || ""),
-    majorIssues: (!s1Text || !s2Text) ? "⚠️ 部分翻譯考題未提交作答，請在對應行補齊。" : ((errors1.length + errors2.length > 0) ? `⚠️ 全卷檢視有 ${errors1.length + errors2.length} 處常規語法精進切入點。` : "🎉 滿分作答！結構嚴整、用字自然精鍊。")
+    feedback1: s1Feedback,
+    feedback2: s2Feedback,
+    improvedVersion: (promptAnalysis.referenceTranslations1?.[0] || "Many students feel anxious when picking university departments.") + " " + (promptAnalysis.referenceTranslations2?.[0] || "However, through self-exploration and consulting experts, they can make better decisions."),
+    majorIssues: (!s1Text || !s2Text)
+      ? "⚠️ 部分句子未偵測到作答，請在相應句型欄補齊作答。"
+      : (errors1.length + errors2.length > 0)
+        ? `⚠️ 全卷檢視發現有 ${errors1.length + errors2.length} 處常規語法精進切入點。`
+        : "🎉 滿分作答！文句極其自然、詞性與搭配無可挑剔。"
   };
 }
 
@@ -495,7 +581,7 @@ app.post("/api/analyze-prompt", async (req, res) => {
       if (hasGeminiKey()) {
         const ai = getGeminiClient();
         const response = await ai.models.generateContent({
-          model: "gemini-2.0-flash",
+          model: "gemini-3.5-flash",
           contents: `Analyze these two Chinese sentences for a GSAT English translation exercise.
   Chinese Sentence 1: "${sentence1}"
   Chinese Sentence 2: "${sentence2}"
@@ -677,7 +763,7 @@ Task:
         parts.push({ text: gradingPrompt });
 
         const response = await ai.models.generateContent({
-          model: "gemini-2.0-flash",
+          model: "gemini-3.5-flash",
           contents: { parts },
           config: {
             systemInstruction: gradingSystemPrompt,
