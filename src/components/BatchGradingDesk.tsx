@@ -17,6 +17,7 @@ interface BatchGradingDeskProps {
 }
 
 interface QueuedStudent {
+  id: string;
   seatNumber: number;
   fileName: string;
   image?: string;
@@ -160,7 +161,7 @@ export default function BatchGradingDesk({
 
         // Update item state to grading
         setProcessQueue(prev => 
-          prev.map(q => q.seatNumber === nextItem.seatNumber ? { ...q, status: "grading", progress: "正在評閱..." } : q)
+          prev.map(q => q.id === nextItem.id ? { ...q, status: "grading", progress: "正在評閱..." } : q)
         );
         addLog(`⏳ 座號 #${nextItem.seatNumber} 已移入前端處理器...`);
 
@@ -178,7 +179,7 @@ export default function BatchGradingDesk({
             onGradingComplete(result);
 
             setProcessQueue(prev => 
-              prev.map(q => q.seatNumber === item.seatNumber ? { 
+              prev.map(q => q.id === item.id ? { 
                 ...q, 
                 status: "graded", 
                 progress: "Done",
@@ -193,7 +194,7 @@ export default function BatchGradingDesk({
               status: "failed"
             });
             setProcessQueue(prev => 
-              prev.map(q => q.seatNumber === item.seatNumber ? { 
+              prev.map(q => q.id === item.id ? { 
                 ...q, 
                 status: "failed", 
                 progress: "Error",
@@ -288,7 +289,8 @@ export default function BatchGradingDesk({
 
     const items: QueuedStudent[] = presentStudents
       .filter(s => parsedMap.has(s.seatNumber))
-      .map(student => ({
+      .map((student, idx) => ({
+        id: `text-${student.seatNumber}-${idx}-${Math.random()}`,
         seatNumber: student.seatNumber,
         fileName: "batch_input.txt",
         manualText: parsedMap.get(student.seatNumber),
@@ -305,30 +307,33 @@ export default function BatchGradingDesk({
 
   // Tab 3: Automatic Class Simulator Booklet Uploading & Ordering Mechanics
   const handleSimFilesUpload = (files: FileList) => {
-    if (presentStudents.length === 0) {
-      setLocalError("目前第二步中無任何勾選出席的學生，請先新增/勾選個別學生出席！");
+    if (students.length === 0) {
+      setLocalError("當前班級無任何學生設定。");
       return;
     }
 
     const fileArray = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
     const newSimFiles: SimFile[] = [];
 
+    // Use presentStudents if there are multiple checked, otherwise default to all class students for sequential mapping
+    const mappingList = presentStudents.length > 1 ? presentStudents : students;
+
     // Check if it is a single PDF with several pages requested to be mapped page-by-page
     if (fileArray.length === 1 && fileArray[0].name.toLowerCase().endsWith(".pdf")) {
       const file = fileArray[0];
-      // Assume a multipage booklet mapping page-by-page to current present students in order
-      presentStudents.forEach((student, sIdx) => {
+      // Assume a multipage booklet mapping page-by-page to current present students or class roster in order
+      mappingList.forEach((student, sIdx) => {
         newSimFiles.push({
           id: `${file.name}-page-${sIdx + 1}-${Math.random()}`,
           name: `${file.name} (學籍考卷頁次 ${sIdx + 1} / Page ${sIdx + 1})`,
           seatNumber: student.seatNumber
         });
       });
-      addLog(`📂 成功裝載單一 PDF 檔：已為當前出席之 ${presentStudents.length} 位學生依序分頁配對考卷`);
+      addLog(`📂 成功裝載單一 PDF 檔：已為當前之 ${mappingList.length} 位學生依序分頁配對考卷`);
     } else {
       // Multiple separate PDF/JPG/PNG files mapped in sequential seat number order
       fileArray.forEach((file, index) => {
-        const assignedStudent = presentStudents[index % presentStudents.length];
+        const assignedStudent = mappingList[index % mappingList.length];
         newSimFiles.push({
           id: `${file.name}-${index}-${Math.random()}`,
           name: file.name,
@@ -343,18 +348,15 @@ export default function BatchGradingDesk({
   };
 
   const handleGenerateSimBundle = () => {
-    if (presentStudents.length === 0) {
-      setLocalError("目前第二步中無任何勾選出席的學生，請先新增/勾選個別學生出席！");
-      return;
-    }
-    const newSimFiles: SimFile[] = presentStudents.map((student, idx) => ({
+    const listToGenerate = presentStudents.length > 1 ? presentStudents : students;
+    const newSimFiles: SimFile[] = listToGenerate.map((student, idx) => ({
       id: `sim-page-${student.seatNumber}`,
       name: `Compiled_Class_Exams_Seat_${student.seatNumber.toString().padStart(2, "0")}.pdf`,
       seatNumber: student.seatNumber
     }));
     setSimFiles(newSimFiles);
     setLocalError(null);
-    addLog(`✨ 已自動生成全班整合 PDF 手寫考卷組（共 ${presentStudents.length} 頁學生的裝頁卷）`);
+    addLog(`✨ 已自動生成全班整合 PDF 手寫考卷組（共 ${listToGenerate.length} 頁學生的裝頁卷）`);
   };
 
   const handleUpdateSimSeat = (fileId: string, newSeat: number) => {
@@ -367,9 +369,9 @@ export default function BatchGradingDesk({
       return;
     }
 
-    const items: QueuedStudent[] = simFiles.map(f => {
+    const items: QueuedStudent[] = simFiles.map((f, idx) => {
       // Find matches in DEMO_STUDENT_SUBMISSIONS, fallback to generic
-      const foundDemo = DEMO_STUDENT_SUBMISSIONS.find(d => d.seatNumber === f.seatNumber);
+      const foundDemo = DEMO_STUDENT_SUBMISSIONS.find(d => d.seatNumber === f.seatNumber || d.seatNumber === ((f.seatNumber - 1) % 5) + 1);
       const textInput = foundDemo 
         ? foundDemo.textInput 
         : `Many students feel anxious when picking their major.\nBut through consulting expert advisers they can make appropriate decisions. (Seat #${f.seatNumber} student Response)`;
@@ -377,6 +379,7 @@ export default function BatchGradingDesk({
       const svgUri = generateHandwritingSvg(f.seatNumber, textInput);
       
       return {
+        id: f.id || `sim-${f.seatNumber}-${idx}-${Math.random()}`,
         seatNumber: f.seatNumber,
         fileName: f.name,
         image: svgUri,
@@ -591,11 +594,11 @@ export default function BatchGradingDesk({
                             <select
                               value={f.seatNumber}
                               onChange={(e) => handleUpdateSimSeat(f.id, parseInt(e.target.value, 10))}
-                              className="text-[11px] bg-white border border-slate-300 rounded-md px-1.5 py-0.5 font-bold text-slate-800 focus:ring-1 focus:ring-teal-500"
+                              className="text-[11px] bg-white border border-slate-300 rounded-md px-1.5 py-0.5 font-bold text-slate-800 focus:ring-1 focus:ring-teal-500 max-w-[120px]"
                             >
-                              {presentStudents.map(student => (
+                              {students.map(student => (
                                 <option key={student.seatNumber} value={student.seatNumber}>
-                                  座號 #{student.seatNumber.toString().padStart(2, "0")} 學生
+                                  座號 #{student.seatNumber.toString().padStart(2, "0")} {student.status === "absent" ? "(未勾選出席)" : "學生"}
                                 </option>
                               ))}
                             </select>
@@ -619,9 +622,9 @@ export default function BatchGradingDesk({
                   <button
                     type="button"
                     onClick={startSimulatorBatchGrading}
-                    disabled={isProcessing || presentStudents.length === 0}
+                    disabled={isProcessing || simFiles.length === 0}
                     className={`w-full py-2.5 px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm ${
-                      isProcessing || presentStudents.length === 0
+                      isProcessing || simFiles.length === 0
                         ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
                         : "bg-teal-600 hover:bg-teal-700 text-white font-extrabold hover:shadow-md cursor-pointer transition-colors active:scale-98"
                     }`}
@@ -689,7 +692,7 @@ export default function BatchGradingDesk({
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5 max-h-[140px] overflow-y-auto pr-1">
                   {processQueue.map((item, idx) => (
                     <div 
-                      key={item.seatNumber} 
+                      key={item.id || `${item.seatNumber}-${idx}`} 
                       onClick={() => item.status === "graded" && onSelectSeat(item.seatNumber)}
                       className={`p-1 text-center rounded-md border font-mono text-[10.5px] cursor-pointer transition-all ${
                         item.status === "grading"
