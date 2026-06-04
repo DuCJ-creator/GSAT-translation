@@ -43,22 +43,31 @@ export default function SeatLayout({
           </div>
         </div>
 
-        {/* Configure Size */}
-        <div className="flex items-center gap-2 self-start sm:self-center">
-          <span className="text-[10px] text-slate-400 font-semibold uppercase">
-            {getTranslation("classSize", lang)}
-          </span>
-          <select
-            value={maxSeats}
-            onChange={(e) => onSetMaxSeats(Number(e.target.value))}
-            className="bg-slate-800 text-slate-100 text-xs px-2 py-1 rounded-md border border-slate-700 outline-hidden font-mono"
-          >
-            {[10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60].map((num) => (
-              <option key={num} value={num}>
-                {num} {lang === "en" ? "Seats" : "座號"}
-              </option>
-            ))}
-          </select>
+        {/* Configure Size: Elegant interactive range slider/scroll bar with all numbers from 1 to 60 */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 self-start sm:self-center w-full sm:w-auto max-w-xs">
+          <div className="flex justify-between items-center w-full sm:w-auto gap-2">
+            <span className="text-[10px] text-slate-400 font-semibold uppercase whitespace-nowrap">
+              {getTranslation("classSize", lang)}
+            </span>
+            <span className="text-xs bg-teal-500/20 text-teal-300 font-mono font-bold px-2 py-0.5 rounded border border-teal-500/30 whitespace-nowrap shrink-0">
+              {maxSeats} {lang === "en" ? "Seats" : "座號"}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 w-full sm:w-40 select-none">
+            <span className="text-[9px] text-slate-500 font-mono font-semibold">1</span>
+            <input
+              type="range"
+              min="1"
+              max="60"
+              value={maxSeats}
+              onChange={(e) => onSetMaxSeats(Number(e.target.value))}
+              className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-teal-400 focus:outline-hidden"
+              style={{
+                background: `linear-gradient(to right, #2dd4bf 0%, #2dd4bf ${((maxSeats - 1) / 59) * 100}%, #334155 ${((maxSeats - 1) / 59) * 100}%, #334155 100%)`
+              }}
+            />
+            <span className="text-[9px] text-slate-500 font-mono font-semibold">60</span>
+          </div>
         </div>
       </div>
 
