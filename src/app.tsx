@@ -17,11 +17,60 @@ import {
 } from "lucide-react";
 import { sendStudentEmailReport } from "./lib/emailService";
 
+
+type SavedGsatProject = {
+  students?: StudentGrading[];
+  promptAnalysis?: PromptAnalysis | null;
+  maxSeats?: number;
+  emailDomain?: string;
+  updatedAt?: string;
+};
+
+const PROJECT_INDEX_KEY = "gsat_project_index";
+const CURRENT_PROJECT_KEY = "gsat_current_project";
+const DEFAULT_PROJECT_NAME = "預設班級";
+
+const getProjectStorageKey = (projectName: string) => `gsat_project_${projectName}`;
+
+const safeReadProject = (projectName: string): SavedGsatProject | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(getProjectStorageKey(projectName));
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    console.error("讀取班級專案失敗", err);
+    return null;
+  }
+};
+
+const safeReadProjectIndex = (): string[] => {
+  if (typeof window === "undefined") return [DEFAULT_PROJECT_NAME];
+  try {
+    const raw = localStorage.getItem(PROJECT_INDEX_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    const list = Array.isArray(parsed) ? parsed.filter((name) => typeof name === "string" && name.trim()) : [];
+    return Array.from(new Set([DEFAULT_PROJECT_NAME, ...list]));
+  } catch (err) {
+    console.error("讀取班級清單失敗", err);
+    return [DEFAULT_PROJECT_NAME];
+  }
+};
+
+const safeReadCurrentProjectName = (): string => {
+  if (typeof window === "undefined") return DEFAULT_PROJECT_NAME;
+  return localStorage.getItem(CURRENT_PROJECT_KEY) || DEFAULT_PROJECT_NAME;
+};
+
 export default function App() {
+  const initialProjectName = safeReadCurrentProjectName();
+  const initialProject = safeReadProject(initialProjectName);
+
   const [lang, setLang] = useState<LangType>("bilingual");
-  const [promptAnalysis, setPromptAnalysis] = useState<PromptAnalysis | null>(null);
-  const [maxSeats, setMaxSeats] = useState<number>(20);
-  const [students, setStudents] = useState<StudentGrading[]>([]);
+  const [projectName, setProjectName] = useState<string>(initialProjectName);
+  const [availableProjects, setAvailableProjects] = useState<string[]>(safeReadProjectIndex);
+  const [promptAnalysis, setPromptAnalysis] = useState<PromptAnalysis | null>(initialProject?.promptAnalysis || null);
+  const [maxSeats, setMaxSeats] = useState<number>(initialProject?.maxSeats || 20);
+  const [students, setStudents] = useState<StudentGrading[]>(initialProject?.students || []);
   const [activeSeat, setActiveSeat] = useState<number | null>(null);
   const [promptSetupOpen, setPromptSetupOpen] = useState<boolean>(true);
   const [rightTab, setRightTab] = useState<"batch" | "stats" | "transcript" | "email">("batch");
@@ -48,8 +97,74 @@ export default function App() {
   });
 
   const [emailDomain, setEmailDomain] = useState<string>(() => {
-    return localStorage.getItem("gsat_email_domain") || "@chhs.hcc.edu.tw";
+    return initialProject?.emailDomain || localStorage.getItem("gsat_email_domain") || "@school.edu.tw";
   });
+
+
+  // Auto-save current class/project to localStorage.
+  useEffect(() => {
+    try {
+      const cleanProjectName = projectName.trim() || DEFAULT_PROJECT_NAME;
+      const updatedProjects = Array.from(new Set([DEFAULT_PROJECT_NAME, ...availableProjects, cleanProjectName]));
+      const payload: SavedGsatProject = {
+        students,
+        promptAnalysis,
+        maxSeats,
+        emailDomain,
+        updatedAt: new Date().toISOString(),
+      };
+
+      localStorage.setItem(CURRENT_PROJECT_KEY, cleanProjectName);
+      localStorage.setItem(PROJECT_INDEX_KEY, JSON.stringify(updatedProjects));
+      localStorage.setItem(getProjectStorageKey(cleanProjectName), JSON.stringify(payload));
+      setAvailableProjects(updatedProjects);
+    } catch (err) {
+      console.error("自動儲存班級專案失敗", err);
+    }
+  }, [projectName, students, promptAnalysis, maxSeats, emailDomain]);
+
+  const handleCreateProject = () => {
+    const name = window.prompt("請輸入新的班級/專案名稱，例如：高三甲班_第一次翻譯");
+    const cleanName = name?.trim();
+    if (!cleanName) return;
+
+    setProjectName(cleanName);
+    setPromptAnalysis(null);
+    setMaxSeats(20);
+    setStudents([]);
+    setActiveSeat(null);
+    setPromptSetupOpen(true);
+    setAvailableProjects((prev) => Array.from(new Set([DEFAULT_PROJECT_NAME, ...prev, cleanName])));
+  };
+
+  const handleLoadProject = (name: string) => {
+    const cleanName = name.trim() || DEFAULT_PROJECT_NAME;
+    const saved = safeReadProject(cleanName);
+
+    setProjectName(cleanName);
+    setStudents(saved?.students || []);
+    setPromptAnalysis(saved?.promptAnalysis || null);
+    setMaxSeats(saved?.maxSeats || 20);
+    setEmailDomain(saved?.emailDomain || localStorage.getItem("gsat_email_domain") || "@school.edu.tw");
+    setActiveSeat(null);
+    setPromptSetupOpen(!saved?.promptAnalysis);
+  };
+
+  const handleDeleteCurrentProject = () => {
+    if (!window.confirm(`確定要清除「${projectName}」的本機儲存資料嗎？此動作不會刪除其他班級。`)) return;
+
+    try {
+      localStorage.removeItem(getProjectStorageKey(projectName));
+      const nextProjects = availableProjects.filter((name) => name !== projectName);
+      const fallbackProject = nextProjects[0] || DEFAULT_PROJECT_NAME;
+      localStorage.setItem(PROJECT_INDEX_KEY, JSON.stringify(nextProjects));
+      localStorage.setItem(CURRENT_PROJECT_KEY, fallbackProject);
+      setAvailableProjects(nextProjects.length ? nextProjects : [DEFAULT_PROJECT_NAME]);
+      handleLoadProject(fallbackProject);
+    } catch (err) {
+      console.error("清除班級專案失敗", err);
+    }
+  };
 
   // Handle navigating to next present student
   const handleNextStudent = () => {
@@ -255,6 +370,70 @@ export default function App() {
       {/* Main Container Workspace */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 space-y-5">
         
+        {/* CLASS PROJECT LOCAL STORAGE BAR */}
+        <section className="bg-white rounded-xl border border-slate-200 shadow-3xs p-3.5 flex flex-col md:flex-row md:items-end justify-between gap-3">
+          <div className="space-y-1 flex-1">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-teal-600" />
+              <h3 className="text-xs font-black text-slate-800 tracking-wide">
+                班級專案自動保存 LocalStorage
+              </h3>
+              <span className="text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">
+                自動儲存中
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-500 leading-relaxed">
+              每個班級會分開保存座號、出缺席、OCR、AI 批改結果、學生 Email 與題目設定；重新整理或關閉瀏覽器後仍可回復同一台電腦的資料。
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+            <div className="min-w-[220px]">
+              <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">
+                目前班級/專案
+              </label>
+              <input
+                type="text"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                placeholder="例如：高三甲班_第一次翻譯"
+                className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-hidden focus:ring-1 focus:ring-teal-500 font-semibold"
+              />
+            </div>
+
+            <div className="min-w-[180px]">
+              <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">
+                載入既有班級
+              </label>
+              <select
+                value={projectName}
+                onChange={(e) => handleLoadProject(e.target.value)}
+                className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-hidden focus:ring-1 focus:ring-teal-500 bg-white"
+              >
+                {availableProjects.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCreateProject}
+              className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-[10.5px] transition-colors"
+            >
+              ➕ 新增班級
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDeleteCurrentProject}
+              className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg font-bold text-[10.5px] transition-colors"
+            >
+              🗑 清除目前班級
+            </button>
+          </div>
+        </section>
+
         {/* UNIFIED BULK EXPORT WORKSPACE BAR (High Visibility) */}
         {students.filter(s => s.status === "graded").length > 0 && (
           <div className="bg-gradient-to-r from-emerald-950 to-slate-900 border border-emerald-500/35 rounded-xl p-4 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 animate-fade-in">
