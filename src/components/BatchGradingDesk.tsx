@@ -242,7 +242,7 @@ export default function BatchGradingDesk({
     const activeQueue = itemsToProcess.map(item => ({ ...item, status: "idle" as const }));
     setProcessQueue(activeQueue);
 
-    const CONCURRENCY_LIMIT = 2; // Keep it modest and reliable
+    const CONCURRENCY_LIMIT = 1; // Strict serial queue (one by one) to maximize API stability and prevent 429 rate limits
     const uncompleted = [...activeQueue];
     const workingPool = new Set<QueuedStudent>();
 
@@ -263,7 +263,7 @@ export default function BatchGradingDesk({
         addLog(`⏳ 座號 #${nextItem.seatNumber} 已移入前端處理器...`);
 
         // Trigger request in background
-        (async (item) => {
+        await (async (item) => {
           try {
             addLog(`🤖 正在與 AI 連線評分 座號 #${item.seatNumber}`);
             const result = await gradeSingleStudent(
@@ -301,15 +301,17 @@ export default function BatchGradingDesk({
             addLog(`❌ 座號 #${item.seatNumber} 評分失敗：${err.message || '連線錯誤'}`);
           } finally {
             workingPool.delete(item);
-            // Trigger tail recursion to run the next item
-            executeNext();
           }
         })(nextItem);
 
-        // Stagger launcher check to spread rate limits slightly (1200ms)
-        if (uncompleted.length > 0 && workingPool.size < CONCURRENCY_LIMIT) {
-          await new Promise(resolve => setTimeout(resolve, 1200));
+        // Add a safety cooldown margin (e.g. 2000ms) to ensure we do not hit API rate limits or concurrent restrictions
+        if (uncompleted.length > 0) {
+          addLog(`⏱️ 為了行車安全，AI 正在排隊冷卻中（等待 2 秒後再評分下一位）...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
+        
+        // Trigger next sequential item
+        executeNext();
       }
     };
 
