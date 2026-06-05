@@ -50,6 +50,8 @@ export default function ClassEmailDispatcher({
   const [saveSuccessToast, setSaveSuccessToast] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState<{ type: "success" | "error" | "info"; msg: string } | null>(null);
   const [isTestingSmtp, setIsTestingSmtp] = useState(false);
+  const [bulkEmailText, setBulkEmailText] = useState("");
+  const [bulkEmailImportStatus, setBulkEmailImportStatus] = useState<string | null>(null);
 
   // Batch dispatch states
   const [batchProgress, setBatchProgress] = useState<{
@@ -104,6 +106,103 @@ export default function ClassEmailDispatcher({
         };
       })
     );
+  };
+
+  const extractEmailFromText = (text: string): string | null => {
+    const match = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+    return match ? match[0].trim() : null;
+  };
+
+  const extractSeatNumberBeforeEmail = (line: string, email: string): number | null => {
+    const emailIndex = line.indexOf(email);
+    const prefix = emailIndex >= 0 ? line.slice(0, emailIndex) : line;
+    const seatMatch = prefix.match(/\b\d{1,3}\b/);
+    if (!seatMatch) return null;
+    const seatNumber = Number(seatMatch[0]);
+    return Number.isFinite(seatNumber) && seatNumber > 0 ? seatNumber : null;
+  };
+
+  const handleBulkEmailImport = () => {
+    const rows = bulkEmailText
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (rows.length === 0) {
+      setBulkEmailImportStatus("請先貼上 Email 名單。每行一個 Email，或從 Excel 貼上『座號 + Email』兩欄資料。");
+      return;
+    }
+
+    const parsedRows = rows.map((line) => {
+      const email = extractEmailFromText(line);
+      const seatNumber = email ? extractSeatNumberBeforeEmail(line, email) : null;
+      return { line, email, seatNumber };
+    });
+
+    const validRows = parsedRows.filter((row): row is { line: string; email: string; seatNumber: number | null } => Boolean(row.email));
+    const invalidRows = parsedRows.length - validRows.length;
+
+    if (validRows.length === 0) {
+      setBulkEmailImportStatus("沒有偵測到有效 Email。請確認格式，例如：amy@gmail.com 或 1,amy@gmail.com。");
+      return;
+    }
+
+    const hasSeatMapping = validRows.some((row) => row.seatNumber !== null);
+    let updatedCount = 0;
+    let skippedSeatCount = 0;
+
+    onSetStudents((prev) => {
+      const orderedStudents = [...prev].sort((a, b) => a.seatNumber - b.seatNumber);
+      const emailBySeat = new Map<number, string>();
+
+      if (hasSeatMapping) {
+        validRows.forEach((row) => {
+          if (row.seatNumber !== null) {
+            emailBySeat.set(row.seatNumber, row.email);
+          }
+        });
+      } else {
+        validRows.forEach((row, index) => {
+          const targetStudent = orderedStudents[index];
+          if (targetStudent) {
+            emailBySeat.set(targetStudent.seatNumber, row.email);
+          } else {
+            skippedSeatCount += 1;
+          }
+        });
+      }
+
+      const nextStudents = prev.map((student) => {
+        const email = emailBySeat.get(student.seatNumber);
+        if (!email) return student;
+        updatedCount += 1;
+        return {
+          ...student,
+          email,
+        };
+      });
+
+      if (hasSeatMapping) {
+        skippedSeatCount += Array.from(emailBySeat.keys()).filter(
+          (seatNumber) => !prev.some((student) => student.seatNumber === seatNumber)
+        ).length;
+      }
+
+      return nextStudents;
+    });
+
+    const mappingModeText = hasSeatMapping
+      ? "已使用『座號 + Email』模式匯入"
+      : "已使用『每行依座號順序』模式匯入";
+
+    setBulkEmailImportStatus(
+      `${mappingModeText}：成功更新 ${updatedCount} 位學生信箱。${invalidRows > 0 ? `略過 ${invalidRows} 行無效資料。` : ""}${skippedSeatCount > 0 ? `另有 ${skippedSeatCount} 筆超出目前座號範圍。` : ""}`
+    );
+  };
+
+  const handleClearBulkEmailText = () => {
+    setBulkEmailText("");
+    setBulkEmailImportStatus(null);
   };
 
   // Run a connection test email dispatching a mock GSAT template to the teacher account
@@ -284,7 +383,7 @@ export default function ClassEmailDispatcher({
 
         <div className="p-4 space-y-4">
           <p className="text-[11px] text-slate-500 leading-normal bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-            ℹ️ <b>【校方通訊規範】</b>: 預設採用的模擬寄件將會輸出完整的 PDF 檔案。若要寄送至學生的真正外部電子信箱（如 <code>@chhs.hcc.edu.tw</code>），請在下方填寫您學校英文組、教務處所提供的學術專任 SMTP 伺服器發信資訊。
+            ℹ️ <b>【校方通訊規範】</b>: 預設採用的模擬寄件將會輸出完整的 PDF 檔案。若要寄送至學生的真正外部電子信箱（如 Gmail、Outlook 或學校網域），請在下方填寫您學校英文組、教務處所提供的學術專任 SMTP 伺服器發信資訊。
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -402,7 +501,7 @@ export default function ClassEmailDispatcher({
             快速設定全班常用信箱預設 Domain Preset
           </h4>
           <p className="text-[10px] text-slate-400 mt-0.5">
-            可依據學校分配之座學號信箱自動生成。座號 01 學生將填入: <code>student01@chhs.hcc.edu.tw</code>
+            適合學校已統一配發 student01、student02 這類帳號的情境；網域可自行改成任何學校或機構網域。
           </p>
         </div>
 
@@ -415,7 +514,7 @@ export default function ClassEmailDispatcher({
               type="text"
               value={emailDomain}
               onChange={(e) => onSetEmailDomain(e.target.value)}
-              placeholder="@chhs.hcc.edu.tw"
+              placeholder="@school.edu.tw"
               className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-hidden focus:ring-1 focus:ring-teal-500 font-mono"
             />
           </div>
@@ -526,6 +625,71 @@ export default function ClassEmailDispatcher({
           </div>
         )}
 
+        {/* Bulk Email Import */}
+        <div className="p-4 border-b border-slate-200 bg-slate-50/80 space-y-3.5">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Mail className="w-4 h-4 text-indigo-500" />
+                整批貼上學生 Email 名單
+              </h4>
+              <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
+                支援兩種格式：① 每行一個 Email，依座號順序填入；② 從 Excel 複製「座號 + Email」兩欄，系統會依座號精準對應。
+              </p>
+            </div>
+            <div className="text-[9.5px] text-slate-500 bg-white border border-slate-200 rounded-lg px-2 py-1 font-mono">
+              Gmail / Outlook / Yahoo / 學校網域皆可
+            </div>
+          </div>
+
+          <textarea
+            value={bulkEmailText}
+            onChange={(e) => {
+              setBulkEmailText(e.target.value);
+              if (bulkEmailImportStatus) setBulkEmailImportStatus(null);
+            }}
+            rows={7}
+            placeholder={`每行一個 Email：
+amy@gmail.com
+tom@outlook.com
+student03@school.edu.tw
+
+或從 Excel 直接貼上兩欄：
+1	amy@gmail.com
+2	tom@outlook.com
+3	student03@school.edu.tw`}
+            className="w-full p-2.5 border border-slate-200 rounded-lg font-mono text-xs bg-white focus:outline-hidden focus:ring-1 focus:ring-indigo-500 resize-y"
+          />
+
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="text-[10px] text-slate-500 leading-relaxed">
+              提醒：若只貼 Email，第一行會填入 01 號、第二行填入 02 號；若貼「座號 + Email」，則不受排序或缺號影響。
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleClearBulkEmailText}
+                className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 font-bold text-[10.5px] rounded-lg cursor-pointer transition-colors"
+              >
+                清空貼上內容
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkEmailImport}
+                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10.5px] rounded-lg cursor-pointer transition-colors shadow-xs"
+              >
+                📥 匯入並填入下方名單
+              </button>
+            </div>
+          </div>
+
+          {bulkEmailImportStatus && (
+            <div className="p-2 bg-indigo-50 border border-indigo-100 text-indigo-800 rounded-lg text-xs font-semibold text-left">
+              {bulkEmailImportStatus}
+            </div>
+          )}
+        </div>
+
         {/* Student Lists & customized emails inputs */}
         <div className="p-3">
           <table className="w-full text-[11px] text-left border-collapse">
@@ -596,7 +760,7 @@ export default function ClassEmailDispatcher({
                             )
                           );
                         }}
-                        placeholder={`例如: student${student.seatNumber.toString().padStart(2, "0")}@chhs.hcc.edu.tw`}
+                        placeholder={`例如: student${student.seatNumber.toString().padStart(2, "0")}@school.edu.tw 或 gmail/outlook 信箱`}
                         className="w-full text-xs p-1 px-2 border border-slate-250 rounded bg-white focus:ring-1 focus:ring-indigo-500 font-mono outline-hidden"
                       />
                     </td>
