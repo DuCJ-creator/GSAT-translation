@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import nodemailer from "nodemailer";
 
 dotenv.config();
 
@@ -826,7 +827,7 @@ function sanitizeAndRecalculateScores(gradingResult: any): any {
       }
       
       // Ensure pointsDeducted exists and is reasonable, default 0.5
-      let points = Number(err.pointsDeducted);
+      let points = Math.abs(Number(err.pointsDeducted));
       if (isNaN(points) || points < 0) {
         points = 0.5;
       }
@@ -853,7 +854,7 @@ function sanitizeAndRecalculateScores(gradingResult: any): any {
         s2SeenErrors.add(rawSegment);
       }
       
-      let points = Number(err.pointsDeducted);
+      let points = Math.abs(Number(err.pointsDeducted));
       if (isNaN(points) || points < 0) {
         points = 0.5;
       }
@@ -866,9 +867,9 @@ function sanitizeAndRecalculateScores(gradingResult: any): any {
   let score1 = s1IsEmpty ? 0.0 : Math.max(0.0, baseS1 - sumDeduction1);
   let score2 = s2IsEmpty ? 0.0 : Math.max(0.0, baseS2 - sumDeduction2);
 
-  // Apply round checks (deductions are in steps of 0.5 points)
-  score1 = Math.round(score1 * 2) / 2;
-  score2 = Math.round(score2 * 2) / 2;
+  // Apply round checks (deductions are in steps of 0.25 points)
+  score1 = Math.round(score1 * 4) / 4;
+  score2 = Math.round(score2 * 4) / 4;
 
   res.score1 = score1;
   res.score2 = score2;
@@ -913,26 +914,30 @@ You are an expert English evaluator for the Taiwan GSAT (General Scholastic Abil
 
 # Grading Rules & Constraints
 1. **Total Score**: 8.0 points maximum (2 sub-questions, 4.0 points each).
-2. **Deduction Mechanism**: Deduct **0.5 points** per unique/distinct error. Stop deducting once a sub-question reaches 0.0. Do not give negative scores.
-3. **No Cumulative Penalties**: The exact same spelling, grammatical, or collocation error repeated within the same sub-question must only be penalized ONCE. If a student repeats the same error, set first error pointsDeducted to 0.5, and any duplicate error pointsDeducted to 0.0.
+2. **Deduction Mechanism**: Deduct points based on error severity. Stop deducting once a sub-question reaches 0.0. Do not give negative scores.
+3. **No Cumulative Penalties**: The exact same spelling, grammatical, or collocation error repeated within the same sub-question must only be penalized ONCE (mark subsequent occurrences as 0.0).
 4. **Independence**: Grade Sentence 1 and Sentence 2 completely independently.
-5. **No Translation Rule**: If a sentence has "No translation submitted" or is completely blank/unanswered, award EXACTLY 0.0 points.
 
-# Acceptable Flexibility (CRITICAL - DO NOT BE OVERLY HARSH)
-1. **Synonyms (MANDATORY ALLOWANCE)**: Do NOT penalize or deduct points for valid synonyms of target Chinese words. Any correct English word that accurately conveys the meaning of the Chinese prompt must be accepted with full points.
-   - Example (Needs/Demands): For "需求", BOTH "needs", "demands", and "requirements" are 100% correct. Deducting 0.5 points for "demands" instead of "needs" is a STRICT VIOLATION of grading guidelines.
-   - Example (Dispute): For "爭執", words like "dispute", "quarrel", "argument", "disagreement", "controversy", or verb phrase equivalents (e.g. "disputed over", "argued about", "had a quarrel") are ALL 100% correct.
-   - Example (Promote): For "促進", both "promote", "foster", "boost", "enhance", "improve", "facilitate", "encourage" are 100% correct.
-   - Example (Mass production/Large production): "mass production", "large-scale production", or "mass-producing" are all correct. Do not deduct points for acceptable synonyms if they are grammatically sound.
-   
-2. **Grammatical Sentence Structure is the Key (THE ULTIMATE CRITERION)**: 
-   - The primary evaluation standard is the correctness of the **underlying grammatical sentence structure** (S+V, tenses, clause boundaries, proper subordinating conjunctions/relative pronouns).
-   - If the student's translation is grammatically sound, semantically correct, and forms a natural English sentence, they MUST receive full marks (4.0/4.0), even if their chosen vocabulary, prepositions or phrase sequence differ from your pre-defined reference/standard translations.
-   - Word-choice deductions (0.5 points) are ONLY valid when a word chosen by the student has completely incorrect meaning or is grammatically incompatible with the sentence pattern. NEVER deduct for standard English synonyms, creative (but correct) phrased expressions, or minor prepositional differences that are accepted in standard dictionaries.
+# Deduction Severity Guide (Crucial)
+To strictly enforce details while maintaining fairness, use TWO tiers of deductions:
 
-3. **Tense Consistency**: Do NOT strictly force the present tense. If a student translates the story in the past tense (e.g., "had a dispute... decided... surrendered"), it is acceptable AS LONG AS the tense is consistent throughout the sentence. Only penalize illogical tense jumps.
+### 1. Major Errors (-0.5 points)
+- **Severe Grammatical Errors**: Wrong verb tense that breaks logic, severe subject-verb disagreement, completely missing a verb or main clause structure.
+- **Missing Key Vocabulary**: Completely failing to translate a key phrase or keyword from the Chinese prompt.
+- **Blatant Spelling/Word Errors**: Misspelling a word into a completely different word, or choosing a vocabulary word that completely changes the meaning.
+- **Punctuation & Capitalization**: Failing to capitalize the first letter of the sentence, or missing a final period/question mark.
 
-4. **Minor Typos**: Do not penalize minor spacing issues unless it alters the sentence structure or grammar.
+### 2. Minor Flaws / Nuances (-0.25 points)
+- **Minor Grammatical Flaws**: Missing an article (a/an/the) where it doesn't hurt comprehension, minor plural "s" omission on a secondary noun.
+- **Imperfect Collocations**: Phrases that are grammatically legal and understandable but slightly unidiomatic or suboptimal (e.g., "dispute on" instead of "dispute over", "at first" with a misplaced trailing space, or using "large production" instead of "mass production").
+- **Stylistic Inexactness**: Choosing a valid synonym that is slightly clumsy or less precise than the prompt's implied context, but still accurate in English.
+
+# Acceptable Flexibility (Do NOT Deduct 0.5 for These)
+- **Synonyms**: Do NOT penalize valid synonyms for keywords. 
+  - "爭執" = dispute over, dispute on (-0.25 if you prefer 'over', but never -0.5), argue about, quarrel about.
+  - "需求" = needs, demands, requirements.
+  - "促進" = promote, boost, foster, improve, enhance.
+- **Tense Consistency**: Do NOT strictly force the present tense. If a student translates the story in the past tense (e.g., "had a dispute... decided... surrendered"), it is acceptable AS LONG AS the tense is consistent throughout the sentence. Only penalize illogical tense jumps.
 
 # Output JSON Schema & Layout Mapping
 Return a raw JSON object with this exact shape:
@@ -940,16 +945,16 @@ Return a raw JSON object with this exact shape:
   "detectedSeatNumber": number | null,
   "ocrSentence1": string,
   "ocrSentence2": string,
-  "score1": number, // Sentence 1 Score: [X.5]/4.0
-  "score2": number, // Sentence 2 Score: [X.5]/4.0
-  "totalScore": number, // Total Score [X.5]/8.0
+  "score1": number, // Sentence 1 Score: [X.XX]/4.0
+  "score2": number, // Sentence 2 Score: [X.XX]/4.0
+  "totalScore": number, // Total Score: [X.XX]/8.0
   "errors1": [ // Sentence 1 Breakdown Table Rows matching:
     {
       "originalSegment": string, // Student's Error
       "suggestedSegment": string, // Correction Guide / Corrected Version
       "errorType": string, // Category (Grammatical / Spelling / Word-choice / Missing)
-      "explanation": string, // Taiwan Chinese Explanation
-      "pointsDeducted": number // 0.5 or 0.0 if repeated identical mistake
+      "explanation": string, // Taiwan Chinese Explanation, explicitly mentioning if it's -0.5 major error or -0.25 minor nuance
+      "pointsDeducted": number // 0.5 or 0.25 (or 0.0 if repeated identical mistake)
     }
   ],
   "errors2": [ // Sentence 2 Breakdown Table Rows matching the same schema:
@@ -961,10 +966,10 @@ Return a raw JSON object with this exact shape:
       "pointsDeducted": number
     }
   ],
-  "feedback1": string, // Teacher's Feedback (S1): A brief, constructive comment in traditional Chinese
-  "feedback2": string, // Teacher's Feedback (S2): A brief, constructive comment in traditional Chinese
+  "feedback1": string, // Teacher's Feedback (S1): A brief, constructive comment in Traditional Chinese (繁體中文)
+  "feedback2": string, // Teacher's Feedback (S2): A brief, constructive comment in Traditional Chinese (繁體中文)
   "improvedVersion": string, // Model Essay: Provide a natural, high-level translation that matches student's chosen tense if reasonable, or use standard CEEC template
-  "majorIssues": string // Diagnostic Summary: Summarize the core areas of improvement for the student in Traditional Chinese
+  "majorIssues": string // Diagnostic Summary (Traditional Chinese): Summarize the core areas of improvement for the student
 }
 
 Instructions:
@@ -1058,6 +1063,90 @@ Task:
   } catch (error: any) {
     console.error("General error in /api/grade-student:", error);
     return res.json(sanitizeAndRecalculateScores(getFallbackGrading(seatNumber, manualText, promptAnalysis)));
+  }
+});
+
+// Sends correction reports with attached red-ink PDFs directly to a student
+app.post("/api/send-email", async (req, res) => {
+  try {
+    const { studentEmail, pdfBase64, htmlContent, subject, smtpConfig } = req.body;
+
+    if (!studentEmail || !studentEmail.includes("@")) {
+      return res.status(400).json({ error: "請輸入有效的學生電子郵件信箱 (Please provide a valid email)" });
+    }
+
+    const smtpHost = smtpConfig?.host;
+    const smtpPort = Number(smtpConfig?.port) || 465;
+    const smtpSecure = smtpConfig?.secure !== false;
+    const smtpUser = smtpConfig?.auth?.user || smtpConfig?.user || "";
+    const smtpPass = smtpConfig?.auth?.pass || smtpConfig?.pass || "";
+
+    const hasCustomSmtp = 
+      smtpConfig && 
+      smtpHost && 
+      smtpHost.trim() !== "" && 
+      smtpHost !== "smtp.your-school.edu.tw" && 
+      smtpUser && 
+      smtpUser.trim() !== "" && 
+      smtpPass && 
+      smtpPass.trim() !== "";
+
+    const attachmentBuffer = pdfBase64 ? Buffer.from(pdfBase64.split(",")[1] || pdfBase64, "base64") : null;
+
+    if (hasCustomSmtp) {
+      console.log(`[SMTP Mailer] Attempting real SMTP transmission via ${smtpHost}:${smtpPort} to ${studentEmail}...`);
+      
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+        timeout: 10000 // 10s connection timeout
+      } as any);
+
+      const mailOptions = {
+        from: `大考英文作文校閱系統 <${smtpUser}>`,
+        to: studentEmail,
+        subject: subject || "學測英文翻譯糾錯：二句手寫紅筆批改回饋報告",
+        html: htmlContent,
+        attachments: attachmentBuffer ? [
+          {
+            filename: `GSAT_Translation_Feedback_SeatNo_${req.body.seatNumber || 'Student'}.pdf`,
+            content: attachmentBuffer,
+            contentType: 'application/pdf'
+          }
+        ] : []
+      };
+
+      await transporter.sendMail(mailOptions);
+      return res.json({ 
+        success: true, 
+        simulated: false, 
+        msg: `電子郵件已成功發送！\n\n系統已連線至您的學校/個人 SMTP 伺服器 (${smtpHost})，並成功將紅墨水 PDF 糾錯報告寄發給學生：${studentEmail}。` 
+      });
+    } else {
+      // Sandbox Mode: Simulate and output detailed trace
+      console.log("================= SMTP SANDBOX SENDING ==================");
+      console.log(`To: ${studentEmail}`);
+      console.log(`Subject: ${subject || '學測二句紅筆批改回饋'}`);
+      console.log(`Attached PDF: ${pdfBase64 ? "Yes (~" + Math.round(pdfBase64.length / 1024) + " KB)" : "No"}`);
+      console.log("-----------------------------------------");
+      console.log(`Body Fragment: ${htmlContent ? htmlContent.substring(0, 150) + "..." : "Empty"}`);
+      console.log("=========================================================");
+
+      return res.json({ 
+        success: true, 
+        simulated: true, 
+        msg: `電子郵件模擬傳送成功！ (Sandbox Mode Output Success)`,
+        detail: `【收件學生】：${studentEmail}\n\n【備註】：目前系統運行在「模擬测试沙盒」中（尚未設定 SMTP 伺服器配置）。\n\n系統已在前端由 A4 htmlCanvas + jsPDF 精準輸出大考紅墨水 PDF 糾錯附件，並模擬拼裝 HTML 郵件格式。如果老師您需要真正將電子郵件寄發到學生的信箱：\n1. 請點選系統畫面右上角的「✉️ 郵件 SMTP 設定」按鈕。\n2. 輸入您學校（如：chhs.hcc.edu.tw 學校伺服器）或個人的真实郵件伺服器帳密（若使用 Gmail，請使用應用程式密碼）。\n3. 修改完成後，點選「寄送」即可立刻向學生寄出攜帶紅筆校對報告 A4 PDF 附件的真實電子郵件！`
+      });
+    }
+  } catch (error: any) {
+    console.error("Error sending email:", error);
+    return res.status(500).json({ error: `電子郵件傳送失敗：${error.message || error}` });
   }
 });
 
