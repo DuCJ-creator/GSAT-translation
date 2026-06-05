@@ -6,13 +6,16 @@ import SeatLayout from "./components/SeatLayout";
 import GradingDesk from "./components/GradingDesk";
 import BatchGradingDesk from "./components/BatchGradingDesk";
 import ClassStats from "./components/ClassStats";
+import ClassEmailDispatcher from "./components/ClassEmailDispatcher";
 import { LangType, getTranslation } from "./lib/translations";
 import { 
   Award, BookOpen, GraduationCap, Sparkles, 
   ChevronRight, Heart, FileDown, Layers, CheckSquare, 
   HelpCircle, Eye, RefreshCw, FileText, Globe,
-  Settings, Users, BarChart3, FileSpreadsheet, ChevronDown, ChevronUp, ChevronLeft, ArrowRight
+  Settings, Users, BarChart3, FileSpreadsheet, ChevronDown, ChevronUp, ChevronLeft, ArrowRight,
+  Mail
 } from "lucide-react";
+import { sendStudentEmailReport } from "./lib/emailService";
 
 export default function App() {
   const [lang, setLang] = useState<LangType>("bilingual");
@@ -21,7 +24,32 @@ export default function App() {
   const [students, setStudents] = useState<StudentGrading[]>([]);
   const [activeSeat, setActiveSeat] = useState<number | null>(null);
   const [promptSetupOpen, setPromptSetupOpen] = useState<boolean>(true);
-  const [rightTab, setRightTab] = useState<"batch" | "stats" | "transcript">("batch");
+  const [rightTab, setRightTab] = useState<"batch" | "stats" | "transcript" | "email">("batch");
+
+  // Load and save SMTP configurations via local storage
+  const [smtpConfig, setSmtpConfig] = useState<{
+    host: string;
+    port: number;
+    user: string;
+    pass: string;
+    secure: boolean;
+  }>(() => {
+    try {
+      const saved = localStorage.getItem("gsat_smtp_config");
+      if (saved) return JSON.parse(saved);
+    } catch (_) {}
+    return {
+      host: "smtp.your-school.edu.tw",
+      port: 465,
+      user: "teacher@your-school.edu.tw",
+      pass: "",
+      secure: true,
+    };
+  });
+
+  const [emailDomain, setEmailDomain] = useState<string>(() => {
+    return localStorage.getItem("gsat_email_domain") || "@chhs.hcc.edu.tw";
+  });
 
   // Handle navigating to next present student
   const handleNextStudent = () => {
@@ -418,6 +446,7 @@ export default function App() {
                   promptAnalysis={promptAnalysis}
                   onGradingComplete={handleGradingComplete}
                   lang={lang}
+                  smtpConfig={smtpConfig}
                 />
               </div>
             ) : (
@@ -465,6 +494,18 @@ export default function App() {
                   >
                     <FileSpreadsheet className="w-4 h-4 text-teal-400" />
                     <span>{lang === "zh" ? "評分總表 transcript" : lang === "en" ? "Transcript" : "大考成績總表"}</span>
+                  </button>
+
+                  <button
+                    onClick={() => setRightTab("email")}
+                    className={`flex-1 py-1.5 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all text-center cursor-pointer ${
+                      rightTab === "email"
+                        ? "bg-slate-950 text-white shadow-sm"
+                        : "text-slate-600 hover:bg-slate-100/85 hover:text-slate-900"
+                    }`}
+                  >
+                    <Mail className="w-4 h-4 text-teal-400" />
+                    <span>{lang === "zh" ? "學生郵件/SMTP 設定" : "Email & SMTP"}</span>
                   </button>
                 </div>
 
@@ -622,6 +663,19 @@ export default function App() {
                         )}
                       </div>
                     </div>
+                  )}
+
+                  {rightTab === "email" && (
+                    <ClassEmailDispatcher
+                      students={students}
+                      onSetStudents={setStudents}
+                      promptAnalysis={promptAnalysis}
+                      smtpConfig={smtpConfig}
+                      onSetSmtpConfig={setSmtpConfig}
+                      emailDomain={emailDomain}
+                      onSetEmailDomain={setEmailDomain}
+                      lang={lang}
+                    />
                   )}
                 </div>
               </div>
