@@ -4,8 +4,9 @@ import { DEMO_STUDENT_SUBMISSIONS, generateHandwritingSvg } from "../data/demoSu
 import { LangType, getTranslation } from "../lib/translations";
 import { 
   FileText, Upload, Sparkles, AlertCircle, CheckCircle, 
-  Trash2, Layers, Keyboard, Award, ArrowUpRight, HelpCircle, RefreshCw 
+  Trash2, Layers, Keyboard, Award, ArrowUpRight, HelpCircle, RefreshCw, Mail 
 } from "lucide-react";
+import { sendStudentEmailReport } from "../lib/emailService";
 
 interface GradingDeskProps {
   activeSeat: number;
@@ -13,6 +14,7 @@ interface GradingDeskProps {
   promptAnalysis: PromptAnalysis | null;
   onGradingComplete: (updatedStudent: StudentGrading) => void;
   lang?: LangType;
+  smtpConfig?: any;
 }
 
 export default function GradingDesk({
@@ -21,6 +23,7 @@ export default function GradingDesk({
   promptAnalysis,
   onGradingComplete,
   lang = "bilingual",
+  smtpConfig,
 }: GradingDeskProps) {
   const [inputMode, setInputMode] = useState<"upload" | "text">("text");
   const [typedText, setTypedText] = useState<string>("");
@@ -31,8 +34,12 @@ export default function GradingDesk({
   const [dragActive, setDragActive] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [isMailing, setIsMailing] = useState<boolean>(false);
+  const [emailStatus, setEmailStatus] = useState<{ type: "success" | "error" | "info"; title: string; desc?: string } | null>(null);
+
   // Sync state if active seat changes
   useEffect(() => {
+    setEmailStatus(null);
     if (student.ocrSentence1 || student.ocrSentence2) {
       // already graded
       const sentencesText = `${student.ocrSentence1 || ""}\n${student.ocrSentence2 || ""}`;
@@ -576,6 +583,112 @@ export default function GradingDesk({
                 <p className="text-xs text-slate-100 font-mono leading-relaxed mt-1.5 select-all p-2.5 bg-slate-900 rounded-md border border-slate-800">
                   {student.improvedVersion}
                 </p>
+              </div>
+            </div>
+
+            {/* Email dispatch section */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-3xs space-y-3">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                <Mail className="w-4.5 h-4.5 text-teal-600" />
+                <h4 className="text-xs font-bold text-slate-800">
+                  ✉️ 學生紅筆診斷報告 Email 寄送 (Email Dispatcher)
+                </h4>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 text-left">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                      學生收件電子信箱 (Student Email)
+                    </label>
+                    <input
+                      type="email"
+                      value={student.email || ""}
+                      onChange={(e) => {
+                        onGradingComplete({
+                          ...student,
+                          email: e.target.value
+                        });
+                      }}
+                      placeholder={`例如: student${String(student.seatNumber).padStart(2, "0")}@chhs.hcc.edu.tw`}
+                      className="w-full text-xs p-2 rounded-lg border border-slate-200 focus:outline-hidden focus:ring-1 focus:ring-teal-500 bg-slate-50/50 font-mono"
+                    />
+                  </div>
+                  <div className="self-end pb-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const seatStr = String(student.seatNumber).padStart(2, "0");
+                        onGradingComplete({
+                          ...student,
+                          email: `student${seatStr}@chhs.hcc.edu.tw`
+                        });
+                      }}
+                      className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold rounded-lg cursor-pointer"
+                      title="套用學校預設信箱格式"
+                    >
+                      自動信箱
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg text-[10px] text-slate-500">
+                  <span>夾帶檔案格式：A4 印刷型高解析 PDF 糾錯回饋表</span>
+                  <span className="font-semibold text-teal-600">自動生成 A4 Canvas</span>
+                </div>
+
+                {emailStatus && (
+                  <div className={`p-2.5 rounded-lg text-xs border text-left ${
+                    emailStatus.type === "success" 
+                      ? "bg-teal-50 border-teal-200 text-teal-800" 
+                      : emailStatus.type === "error"
+                      ? "bg-rose-50 border-rose-100 text-rose-800"
+                      : "bg-slate-50 border-slate-100 text-slate-700 animate-pulse"
+                  }`}>
+                    <p className="font-bold">{emailStatus.title}</p>
+                    {emailStatus.desc && <p className="mt-1 text-[11px] font-normal leading-relaxed whitespace-pre-wrap">{emailStatus.desc}</p>}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  disabled={isMailing || !student.email || !student.email.includes("@")}
+                  onClick={async () => {
+                    setIsMailing(true);
+                    setEmailStatus({ type: "info", title: "⏳ 正在生成紅墨水 A4 PDF 附件與袋包裝...", desc: "系統正利用 html2canvas 高解析度繪製並編譯該學生的個人紅墨水 A4 考卷 PDF..." });
+                    try {
+                      const res = await sendStudentEmailReport(student, promptAnalysis, smtpConfig || null, student.email || "");
+                      if (res.success) {
+                        setEmailStatus({ 
+                          type: "success", 
+                          title: "✅ " + res.msg, 
+                          desc: res.detail || "該學生的專屬 PDF 紅字糾錯回饋報告已順利寄發！" 
+                        });
+                      } else {
+                        throw new Error(res.msg || "伺服器通報異常");
+                      }
+                    } catch (err: any) {
+                      console.error(err);
+                      setEmailStatus({ 
+                        type: "error", 
+                        title: "❌ 電子郵件傳送失敗 (Mailer Dispatch Failure)", 
+                        desc: `原因說明：${err.message || err}\n\n【排查方案】：若您尚未設定您學校的真實 SMTP 寄信伺服器，您可以至右上角的「學生郵件/SMTP 設定」查閱或進行配置。` 
+                      });
+                    } finally {
+                      setIsMailing(false);
+                    }
+                  }}
+                  className={`w-full py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                    isMailing
+                      ? "bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed"
+                      : !student.email || !student.email.includes("@")
+                      ? "bg-slate-50 border border-slate-200 text-slate-400 cursor-not-allowed"
+                      : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs active:scale-98"
+                  }`}
+                >
+                  <Mail className="w-4 h-4 shrink-0" />
+                  {isMailing ? "正在輸出 PDF 並傳送中..." : "✉️ 寄送個人紅字 A4 批改信件給學生"}
+                </button>
               </div>
             </div>
           </div>
