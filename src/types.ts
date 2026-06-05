@@ -40,6 +40,7 @@ export interface StudentGrading {
   majorIssues?: string;
   studentInputImage?: string; // base64 representation to recall what was uploaded
   fileName?: string;
+  email?: string;
 }
 
 export interface ClassStatistics {
