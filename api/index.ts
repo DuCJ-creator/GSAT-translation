@@ -1154,7 +1154,8 @@ app.post("/api/send-email", async (req, res) => {
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     console.log("Starting server in DEVELOPMENT mode with Vite Middleware...");
-    const { createServer: createViteServer } = await import("vite");
+    const viteKey = "vite";
+    const { createServer: createViteServer } = await import(viteKey) as any;
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
