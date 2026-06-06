@@ -159,7 +159,7 @@ export default function SeatLayout({
                         {lang === "zh" ? "得分" : lang === "en" ? "Score" : "得分 (Pts)"}
                       </span>
                       <span className="text-xs font-bold font-mono tracking-tight text-emerald-800">
-                        {student.totalScore?..toFixed(2)}
+                        {student.totalScore?.toFixed(2)}
                       </span>
                     </div>
                   ) : (
