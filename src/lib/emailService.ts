@@ -58,14 +58,14 @@ export async function generateStudentReportPdf(
         <div style="border-right: 1.5px solid #e2e8f0; padding-right: 8px;">
           <h3 style="font-size: 11px; font-weight: 700; color: #64748b; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">第一句 score (Sentence 1)</h3>
           <p style="font-size: 22px; font-weight: 900; color: #0d9488; margin: 6px 0 0 0;">
-            ${student.score1 !== undefined ? student.score1.toFixed(1) : "0.0"} 
+            ${student.score1 !== undefined ? student.score1.toFixed(2) : "0.0"} 
             <span style="font-size: 12px; color: #64748b; font-weight: 500;">/ 4.0 分</span>
           </p>
         </div>
         <div style="padding-left: 8px;">
           <h3 style="font-size: 11px; font-weight: 700; color: #64748b; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">第二句 score (Sentence 2)</h3>
           <p style="font-size: 22px; font-weight: 900; color: #0d9488; margin: 6px 0 0 0;">
-            ${student.score2 !== undefined ? student.score2.toFixed(1) : "0.0"} 
+            ${student.score2 !== undefined ? student.score2.toFixed(2) : "0.0"} 
             <span style="font-size: 12px; color: #64748b; font-weight: 500;">/ 4.0 分</span>
           </p>
         </div>
@@ -75,7 +75,7 @@ export async function generateStudentReportPdf(
       <div style="border: 3px dashed #f43f5e; border-radius: 50%; width: 95px; height: 95px; margin: 0 auto; display: flex; flex-direction: column; justify-content: center; align-items: center; transform: rotate(-5deg); box-shadow: 0 0 0 4px #fff, 0 1px 3px rgba(0,0,0,0.05);">
         <div style="text-align: center; color: #f43f5e; font-family: sans-serif;">
           <div style="font-size: 10px; font-weight: 800; letter-spacing: 0.5px; opacity: 0.85;">大考複核</div>
-          <div style="font-size: 24px; font-weight: 1000; line-height: 1; margin: 3px 0;">${totalScore.toFixed(1)}</div>
+          <div style="font-size: 24px; font-weight: 1000; line-height: 1; margin: 3px 0;">${totalScore.toFixed(2)}</div>
           <div style="font-size: 10px; font-weight: 800; letter-spacing: 0.5px;">級分 8.0 滿分</div>
         </div>
       </div>
@@ -136,7 +136,7 @@ export async function generateStudentReportPdf(
                   ${err.suggestedSegment}
                 </td>
                 <td style="padding: 10px 8px; text-align: center; color: #b91c1c; font-weight: 800;">
-                  -${err.pointsDeducted.toFixed(1)}
+                  -${err.pointsDeducted.toFixed(2)}
                 </td>
                 <td style="padding: 10px 8px; color: #334155; line-height: 1.4;">
                   ${err.explanation}
@@ -236,10 +236,10 @@ export function generateStudentEmailHtmlBody(
         <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 18px; text-align: center; margin: 20px 0;">
           <span style="font-size: 13px; font-weight: bold; color: #166534; text-transform: uppercase;">大考英文翻譯總體得分</span>
           <strong style="font-size: 30px; color: #ef4444; display: block; margin-top: 5px; font-weight: 900;">
-            ${totalScore.toFixed(1)} <span style="font-size: 16px; color: #475569; font-weight: normal;">/ 8.0 滿分</span>
+            ${totalScore.toFixed(2)} <span style="font-size: 16px; color: #475569; font-weight: normal;">/ 8.0 滿分</span>
           </strong>
           <span style="font-size: 11.5px; color: #15803d; display: block; margin-top: 8px; font-weight: bold;">
-            小計：第一句 ${student.score1 !== undefined ? student.score1.toFixed(1) : "0.0"} | 第二句 ${student.score2 !== undefined ? student.score2.toFixed(1) : "0.0"} (共計偵測到 ${errorsCount} 處紅筆扣分點)
+            小計：第一句 ${student.score1 !== undefined ? student.score1.toFixed(2) : "0.0"} | 第二句 ${student.score2 !== undefined ? student.score2.toFixed(2) : "0.0"} (共計偵測到 ${errorsCount} 處紅筆扣分點)
           </span>
         </div>
 
