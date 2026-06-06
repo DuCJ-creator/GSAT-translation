@@ -187,11 +187,11 @@ export default function BatchGradingDesk({
           ...q, 
           status: "graded", 
           progress: "Done", 
-          score: `${result.totalScore?.toFixed(1)} 分`,
+          score: `${result.totalScore?.toFixed(2)} 分`,
           errorMsg: undefined
         } : q)
       );
-      addLog(`✅ 座號 #${seatNumber} 重新評估完畢：${result.totalScore?.toFixed(1)}分`);
+      addLog(`✅ 座號 #${seatNumber} 重新評估完畢：${result.totalScore?.toFixed(2)}分`);
     } catch (err: any) {
       console.error(err);
       onGradingComplete({
@@ -280,10 +280,10 @@ export default function BatchGradingDesk({
                 ...q, 
                 status: "graded", 
                 progress: "Done",
-                score: `${result.totalScore?.toFixed(1)} 分`
+                score: `${result.totalScore?.toFixed(2)} 分`
               } : q)
             );
-            addLog(`✅ 座號 #${item.seatNumber} 批改完成：${result.totalScore?.toFixed(1)}分 (大考 ${result.majorIssues})`);
+            addLog(`✅ 座號 #${item.seatNumber} 批改完成：${result.totalScore?.toFixed(2)}分 (大考 ${result.majorIssues})`);
           } catch (err: any) {
             console.error(err);
             onGradingComplete({
