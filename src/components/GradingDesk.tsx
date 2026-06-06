@@ -428,7 +428,7 @@ export default function GradingDesk({
                     <div className="absolute inset-0 border-4 border-rose-500 rounded-full border-dashed animate-pulse" style={{ transform: "rotate(-5deg)", borderRadius: "48% 52% 50% 50% / 40% 41% 59% 60%" }}></div>
                     <span className="text-[10px] font-bold text-rose-500 tracking-wider rotate-[-6deg] uppercase">GSAT TOTAL</span>
                     <span className="text-4xl font-extrabold text-rose-600 font-handwritten rotate-[-6deg] my-0.5">
-                      {student.totalScore?.toFixed(1)}
+                      {student.totalScore?.toFixed(2)}
                     </span>
                     <span className="text-[10px] font-bold text-slate-400">out of 8.0 pts</span>
                   </div>
@@ -441,7 +441,7 @@ export default function GradingDesk({
                         <span className="w-2 h-2 rounded-full bg-slate-300"></span>
                         第一句評分 (Sentence 1):
                       </span>
-                      <span className="font-mono font-bold text-slate-800">{student.score1?.toFixed(1)} / 4.0</span>
+                      <span className="font-mono font-bold text-slate-800">{student.score1?.toFixed(2)} / 4.0</span>
                     </div>
                     <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                       <div className="bg-rose-500 h-full" style={{ width: `${((student.score1 || 0) / 4) * 100}%` }}></div>
@@ -454,7 +454,7 @@ export default function GradingDesk({
                         <span className="w-2 h-2 rounded-full bg-slate-300"></span>
                         第二句評分 (Sentence 2):
                       </span>
-                      <span className="font-mono font-bold text-slate-800">{student.score2?.toFixed(1)} / 4.0</span>
+                      <span className="font-mono font-bold text-slate-800">{student.score2?.toFixed(2)} / 4.0</span>
                     </div>
                     <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                       <div className="bg-rose-500 h-full" style={{ width: `${((student.score2 || 0) / 4) * 100}%` }}></div>
@@ -487,7 +487,7 @@ export default function GradingDesk({
               <div className="space-y-1 bg-amber-50/30 p-3 rounded-lg border border-amber-200/50">
                 <div className="flex justify-between items-center text-[10px] font-bold text-slate-500">
                   <span>SENTENCE 1 ORIGINAL TRANSCRIPTION</span>
-                  <span className="text-emerald-700">Score: {student.score1?.toFixed(1)}/4.0</span>
+                  <span className="text-emerald-700">Score: {student.score1?.toFixed(2)}/4.0</span>
                 </div>
                 <blockquote className="text-xs font-mono py-1.5 border-l-2 border-slate-300 pl-3 italic text-slate-700 text-slate-800 bg-white/70 rounded-r-md">
                   {student.ocrSentence1 || "(空白或無辨識結果)"}
@@ -528,7 +528,7 @@ export default function GradingDesk({
               <div className="space-y-1 bg-purple-50/30 p-3 rounded-lg border border-purple-200/50">
                 <div className="flex justify-between items-center text-[10px] font-bold text-slate-500">
                   <span>SENTENCE 2 ORIGINAL TRANSCRIPTION</span>
-                  <span className="text-emerald-700">Score: {student.score2?.toFixed(1)}/4.0</span>
+                  <span className="text-emerald-700">Score: {student.score2?.toFixed(2)}/4.0</span>
                 </div>
                 <blockquote className="text-xs font-mono py-1.5 border-l-2 border-slate-300 pl-3 italic text-slate-700 text-slate-800 bg-white/70 rounded-r-md">
                   {student.ocrSentence2 || "(空白或無辨識結果)"}
