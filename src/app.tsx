@@ -306,9 +306,9 @@ export default function App() {
       return [
         s.seatNumber,
         statusStr,
-        s.status === "graded" && s.score1 !== undefined ? s.score1.toFixed(1) : "",
-        s.status === "graded" && s.score2 !== undefined ? s.score2.toFixed(1) : "",
-        s.status === "graded" && s.totalScore !== undefined ? s.totalScore.toFixed(1) : "",
+        s.status === "graded" && s.score1 !== undefined ? s.score1.toFixed(2) : "",
+        s.status === "graded" && s.score2 !== undefined ? s.score2.toFixed(2) : "",
+        s.status === "graded" && s.totalScore !== undefined ? s.totalScore.toFixed(2) : "",
         s.ocrSentence1 || "",
         s.ocrSentence2 || "",
         s.majorIssues || ""
@@ -815,13 +815,13 @@ export default function App() {
                                       )}
                                     </td>
                                     <td className="py-2 px-3 font-mono">
-                                      {isGraded ? `${student.score1?.toFixed(1)} Pts` : "-"}
+                                      {isGraded ? `${student.score1?.toFixed(2)} Pts` : "-"}
                                     </td>
                                     <td className="py-2 px-3 font-mono">
-                                      {isGraded ? `${student.score2?.toFixed(1)} Pts` : "-"}
+                                      {isGraded ? `${student.score2?.toFixed(2)} Pts` : "-"}
                                     </td>
                                     <td className="py-2 px-3 font-mono font-bold text-teal-850">
-                                      {isGraded ? `${student.totalScore?.toFixed(1)}` : "-"}
+                                      {isGraded ? `${student.totalScore?.toFixed(2)}` : "-"}
                                     </td>
                                     <td className="py-2 px-3 text-slate-600 whitespace-pre-line break-words min-w-[200px] max-w-[320px] leading-relaxed text-[11px]">
                                       {isGraded ? student.majorIssues : "-"}
@@ -905,7 +905,7 @@ export default function App() {
                     {/* Circle Score Badge */}
                     <div className="w-20 h-20 rounded-full border-4 border-red-500 flex flex-col items-center justify-center text-red-600">
                       <span className="text-[9px] font-bold uppercase tracking-wider leading-none">Score</span>
-                      <span className="text-2xl font-black leading-none mt-1">{student.totalScore?.toFixed(1)}</span>
+                      <span className="text-2xl font-black leading-none mt-1">{student.totalScore?.toFixed(2)}</span>
                       <span className="text-[8px] font-bold text-red-400 border-t border-red-200 mt-1 pt-0.5 leading-none">/ 8.0 Pts</span>
                     </div>
                   </div>
@@ -915,16 +915,16 @@ export default function App() {
                 <div className="grid grid-cols-3 gap-4 bg-slate-50 border border-slate-200 p-3 rounded-lg mb-6">
                   <div className="text-center border-r border-slate-200">
                     <div className="text-[10px] text-slate-500 font-bold uppercase">第一句得分 (Sentence 1)</div>
-                    <div className="text-lg font-black text-slate-800">{student.score1?.toFixed(1)} / 4.0</div>
+                    <div className="text-lg font-black text-slate-800">{student.score1?.toFixed(2)} / 4.0</div>
                   </div>
                   <div className="text-center border-r border-slate-200">
                     <div className="text-[10px] text-slate-500 font-bold uppercase">第二句得分 (Sentence 2)</div>
-                    <div className="text-lg font-black text-slate-800">{student.score2?.toFixed(1)} / 4.0</div>
+                    <div className="text-lg font-black text-slate-800">{student.score2?.toFixed(2)} / 4.0</div>
                   </div>
                   <div className="text-center">
                     <div className="text-[10px] text-slate-500 font-bold uppercase">瑕疵總扣分 (Deductions)</div>
                     <div className="text-lg font-black text-red-600">
-                      -{Math.max(0, 8.0 - (student.totalScore || 0)).toFixed(1)} Pts
+                      -{Math.max(0, 8.0 - (student.totalScore || 0)).toFixed(2)} Pts
                     </div>
                   </div>
                 </div>
