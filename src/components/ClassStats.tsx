@@ -120,7 +120,7 @@ export default function ClassStats({ students, lang = "bilingual" }: ClassStatsP
                 {lang === "zh" ? "中位數" : lang === "en" ? "MEDIAN SCORE" : "中位數 (MEDIAN)"}
               </span>
               <div className="flex items-baseline gap-1 mt-1">
-                <span className="text-2xl font-extrabold text-slate-800 font-mono">{medianScore.toFixed(1)}</span>
+                <span className="text-2xl font-extrabold text-slate-800 font-mono">{medianScore.toFixed(2)}</span>
                 <span className="text-[10px] text-slate-400">/ 8.0</span>
               </div>
               <p className="text-[9px] text-slate-500 mt-1.5">
@@ -133,12 +133,12 @@ export default function ClassStats({ students, lang = "bilingual" }: ClassStatsP
                 {lang === "zh" ? "最高分 / 最低分" : lang === "en" ? "HIGHEST / LOWEST SCORES" : "最高分 / 最低分 (HIGHEST/LOWEST)"}
               </span>
               <div className="flex items-baseline gap-1 mt-1">
-                <span className="text-2xl font-extrabold text-emerald-800 font-mono">{highestScore.toFixed(1)}</span>
+                <span className="text-2xl font-extrabold text-emerald-800 font-mono">{highestScore.toFixed(2)}</span>
                 <span className="text-xs text-slate-400">/</span>
-                <span className="text-lg font-bold text-slate-600 font-mono">{lowestScore.toFixed(1)}</span>
+                <span className="text-lg font-bold text-slate-600 font-mono">{lowestScore.toFixed(2)}</span>
               </div>
               <p className="text-[9px] text-emerald-700 mt-1.5">
-                {lang === "zh" ? `班級考量落差：${(highestScore - lowestScore).toFixed(1)} 分` : lang === "en" ? `Cohort delta range is ${(highestScore - lowestScore).toFixed(1)} Pts` : `受測全班落差差值： ${(highestScore - lowestScore).toFixed(1)} 分`}
+                {lang === "zh" ? `班級考量落差：${(highestScore - lowestScore).toFixed(2)} 分` : lang === "en" ? `Cohort delta range is ${(highestScore - lowestScore).toFixed(2)} Pts` : `受測全班落差差值： ${(highestScore - lowestScore).toFixed(2)} 分`}
               </p>
             </div>
 
