@@ -421,59 +421,56 @@ export default function GradingDesk({
               </div>
 
               {/* Red Pen Circle Grading Board */}
-              <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-4 items-center bg-radial from-slate-50 to-white">
-                <div className="flex flex-col items-center justify-center border-b sm:border-b-0 sm:border-r border-slate-100 pb-4 sm:pb-0">
-                  <div className="relative w-28 h-28 flex flex-col items-center justify-center">
-                    {/* Retro red-ink hand-drawn teacher grading circle */}
-                    <div className="absolute inset-0 border-4 border-rose-500 rounded-full border-dashed animate-pulse" style={{ transform: "rotate(-5deg)", borderRadius: "48% 52% 50% 50% / 40% 41% 59% 60%" }}></div>
-                    <span className="text-[10px] font-bold text-rose-500 tracking-wider rotate-[-6deg] uppercase">GSAT TOTAL</span>
-                    <span className="text-4xl font-extrabold text-rose-600 font-handwritten rotate-[-6deg] my-0.5">
-                      {student.totalScore?.toFixed(2)}
-                    </span>
-                    <span className="text-[10px] font-bold text-slate-400">out of 8.0 pts</span>
-                  </div>
-                </div>
+              {(() => {
+                const subQuestionsList = student.subQuestionGradings || [
+                  { questionIndex: 1, ocrSentence: student.ocrSentence1 || "", score: student.score1 || 0, errors: student.errors1 || [], feedback: student.feedback1 || "" },
+                  { questionIndex: 2, ocrSentence: student.ocrSentence2 || "", score: student.score2 || 0, errors: student.errors2 || [], feedback: student.feedback2 || "" }
+                ];
+                const maxTotalScore = subQuestionsList.length * 4;
 
-                <div className="sm:col-span-2 space-y-2.5">
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-semibold text-slate-700 flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-slate-300"></span>
-                        第一句評分 (Sentence 1):
-                      </span>
-                      <span className="font-mono font-bold text-slate-800">{student.score1?.toFixed(2)} / 4.0</span>
+                return (
+                  <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-4 items-center bg-radial from-slate-50 to-white">
+                    <div className="flex flex-col items-center justify-center border-b sm:border-b-0 sm:border-r border-slate-100 pb-4 sm:pb-0">
+                      <div className="relative w-28 h-28 flex flex-col items-center justify-center">
+                        <div className="absolute inset-0 border-4 border-rose-500 rounded-full border-dashed animate-pulse" style={{ transform: "rotate(-5deg)", borderRadius: "48% 52% 50% 50% / 40% 41% 59% 60%" }}></div>
+                        <span className="text-[10px] font-bold text-rose-500 tracking-wider rotate-[-6deg] uppercase">TOTAL SCORE</span>
+                        <span className="text-4xl font-extrabold text-rose-600 font-handwritten rotate-[-6deg] my-0.5">
+                          {student.totalScore?.toFixed(1)}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400">out of {maxTotalScore.toFixed(1)} pts</span>
+                      </div>
                     </div>
-                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                      <div className="bg-rose-500 h-full" style={{ width: `${((student.score1 || 0) / 4) * 100}%` }}></div>
-                    </div>
-                  </div>
 
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-semibold text-slate-700 flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-slate-300"></span>
-                        第二句評分 (Sentence 2):
-                      </span>
-                      <span className="font-mono font-bold text-slate-800">{student.score2?.toFixed(2)} / 4.0</span>
-                    </div>
-                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                      <div className="bg-rose-500 h-full" style={{ width: `${((student.score2 || 0) / 4) * 100}%` }}></div>
-                    </div>
-                  </div>
+                    <div className="sm:col-span-2 space-y-2.5">
+                      {subQuestionsList.map((sq, idx) => (
+                        <div key={idx}>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="font-semibold text-slate-700 flex items-center gap-1">
+                              <span className="w-2 h-2 rounded-full bg-slate-300"></span>
+                              第 {sq.questionIndex} 題評分:
+                            </span>
+                            <span className="font-mono font-bold text-slate-800">{sq.score?.toFixed(1)} / 4.0</span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                            <div className="bg-rose-500 h-full" style={{ width: `${((sq.score || 0) / 4) * 100}%` }}></div>
+                          </div>
+                        </div>
+                      ))}
 
-                  <div className="pt-1.5 flex gap-1.5">
-                    <span className="text-[9px] font-semibold bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded-sm">
-                      {student.errors1?.length || 0} S1 處瑕疵
-                    </span>
-                    <span className="text-[9px] font-semibold bg-rose-50 text-rose-700 border border-rose-100 px-1.5 py-0.5 rounded-sm">
-                      {student.errors2?.length || 0} S2 處瑕疵
-                    </span>
-                    <span className="text-[9px] font-semibold bg-amber-50 text-amber-700 border border-amber-100 px-1.5 py-0.5 rounded-sm">
-                      扣分制 (-0.5 起)
-                    </span>
+                      <div className="pt-1.5 flex flex-wrap gap-1.5">
+                        {subQuestionsList.map((sq, idx) => (
+                          <span key={idx} className="text-[9px] font-semibold bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded-sm">
+                            第 {sq.questionIndex} 題 {sq.errors?.length || 0} 處瑕疵
+                          </span>
+                        ))}
+                        <span className="text-[9px] font-semibold bg-amber-50 text-amber-700 border border-amber-100 px-1.5 py-0.5 rounded-sm">
+                          每題 4 分獨立採計
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                );
+              })()}
             </div>
 
             {/* OCR Transcribed text feedback comparison */}
@@ -483,87 +480,61 @@ export default function GradingDesk({
                 <h5 className="text-xs font-semibold text-slate-700">學生作答內容辨識與即時紅筆批註</h5>
               </div>
 
-              {/* Sentence 1 Sheet Correction */}
-              <div className="space-y-1 bg-amber-50/30 p-3 rounded-lg border border-amber-200/50">
-                <div className="flex justify-between items-center text-[10px] font-bold text-slate-500">
-                  <span>SENTENCE 1 ORIGINAL TRANSCRIPTION</span>
-                  <span className="text-emerald-700">Score: {student.score1?.toFixed(2)}/4.0</span>
-                </div>
-                <blockquote className="text-xs font-mono py-1.5 border-l-2 border-slate-300 pl-3 italic text-slate-700 text-slate-800 bg-white/70 rounded-r-md">
-                  {student.ocrSentence1 || "(空白或無辨識結果)"}
-                </blockquote>
-                
-                {/* Visual Red Corrections for Sentence 1 */}
-                {student.errors1 && student.errors1.length > 0 ? (
-                  <div className="mt-2 space-y-1.5">
-                    <div className="text-[9px] font-bold text-rose-600 uppercase flex items-center gap-1">
-                      <span className="w-1 h-3 bg-rose-500 inline-block"></span>紅筆糾錯 (Red Corrections):
-                    </div>
-                    {student.errors1.map((err, idx) => (
-                      <div key={idx} className="bg-rose-50/70 border border-rose-100 p-2 rounded-md text-[11px] space-y-0.5">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="bg-rose-100 text-rose-800 font-mono text-[9px] px-1 py-0.2 rounded font-bold">{err.errorType}</span>
-                          <span className="line-through text-slate-400 font-mono text-[10px]">{err.originalSegment}</span>
-                          <span className="text-slate-400">→</span>
-                          <span className="text-emerald-700 font-bold font-mono text-[11px]">{err.suggestedSegment}</span>
-                          <span className="text-rose-600 font-bold ml-auto font-mono text-[10px]">-{err.pointsDeducted}</span>
-                        </div>
-                        <p className="text-slate-600 text-[10px] leading-relaxed italic">{err.explanation}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[10px] text-emerald-700 font-medium italic mt-1">Excellent sentence construction! No grammatical or spelling errors detected.</p>
-                )}
-                
-                {student.feedback1 && (
-                  <div className="text-[11px] bg-slate-50 p-2 rounded-md text-slate-600 leading-normal mt-2 border-l border-slate-200">
-                    <span className="font-semibold text-slate-800 text-[10.5px]">第一句點評：</span>
-                    {student.feedback1}
-                  </div>
-                )}
-              </div>
+              {(() => {
+                const subQuestionsList = student.subQuestionGradings || [
+                  { questionIndex: 1, ocrSentence: student.ocrSentence1 || "", score: student.score1 || 0, errors: student.errors1 || [], feedback: student.feedback1 || "" },
+                  { questionIndex: 2, ocrSentence: student.ocrSentence2 || "", score: student.score2 || 0, errors: student.errors2 || [], feedback: student.feedback2 || "" }
+                ];
 
-              {/* Sentence 2 Sheet Correction */}
-              <div className="space-y-1 bg-purple-50/30 p-3 rounded-lg border border-purple-200/50">
-                <div className="flex justify-between items-center text-[10px] font-bold text-slate-500">
-                  <span>SENTENCE 2 ORIGINAL TRANSCRIPTION</span>
-                  <span className="text-emerald-700">Score: {student.score2?.toFixed(2)}/4.0</span>
-                </div>
-                <blockquote className="text-xs font-mono py-1.5 border-l-2 border-slate-300 pl-3 italic text-slate-700 text-slate-800 bg-white/70 rounded-r-md">
-                  {student.ocrSentence2 || "(空白或無辨識結果)"}
-                </blockquote>
-                
-                {/* Visual Red Corrections for Sentence 2 */}
-                {student.errors2 && student.errors2.length > 0 ? (
-                  <div className="mt-2 space-y-1.5">
-                    <div className="text-[9px] font-bold text-rose-600 uppercase flex items-center gap-1">
-                      <span className="w-1 h-3 bg-rose-500 inline-block"></span>紅筆糾錯 (Red Corrections):
+                const bgStyles = [
+                  "bg-amber-50/30 border-amber-200/50",
+                  "bg-purple-50/30 border-purple-200/50",
+                  "bg-sky-50/30 border-sky-200/50",
+                  "bg-emerald-50/30 border-emerald-200/50",
+                  "bg-rose-50/30 border-rose-200/50"
+                ];
+
+                return subQuestionsList.map((sq, idx) => (
+                  <div key={idx} className={`space-y-1 p-3 rounded-lg border ${bgStyles[idx % bgStyles.length]}`}>
+                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase">
+                      <span>QUESTION {sq.questionIndex} TRANSCRIPTION</span>
+                      <span className="text-emerald-700">Score: {sq.score?.toFixed(1)}/4.0</span>
                     </div>
-                    {student.errors2.map((err, idx) => (
-                      <div key={idx} className="bg-rose-50/70 border border-rose-100 p-2 rounded-md text-[11px] space-y-0.5">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="bg-rose-100 text-rose-800 font-mono text-[9px] px-1 py-0.2 rounded font-bold">{err.errorType}</span>
-                          <span className="line-through text-slate-400 font-mono text-[10px]">{err.originalSegment}</span>
-                          <span className="text-slate-400">→</span>
-                          <span className="text-emerald-700 font-bold font-mono text-[11px]">{err.suggestedSegment}</span>
-                          <span className="text-rose-600 font-bold ml-auto font-mono text-[10px]">-{err.pointsDeducted}</span>
+                    <blockquote className="text-xs font-mono py-1.5 border-l-2 border-slate-300 pl-3 italic text-slate-800 bg-white/70 rounded-r-md">
+                      {sq.ocrSentence || "(空白或無辨識結果)"}
+                    </blockquote>
+
+                    {sq.errors && sq.errors.length > 0 ? (
+                      <div className="mt-2 space-y-1.5">
+                        <div className="text-[9px] font-bold text-rose-600 uppercase flex items-center gap-1">
+                          <span className="w-1 h-3 bg-rose-500 inline-block"></span>紅筆糾錯 (Red Corrections):
                         </div>
-                        <p className="text-slate-600 text-[10px] leading-relaxed italic">{err.explanation}</p>
+                        {sq.errors.map((err, eIdx) => (
+                          <div key={eIdx} className="bg-rose-50/70 border border-rose-100 p-2 rounded-md text-[11px] space-y-0.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="bg-rose-100 text-rose-800 font-mono text-[9px] px-1 py-0.2 rounded font-bold">{err.errorType}</span>
+                              <span className="line-through text-slate-400 font-mono text-[10px]">{err.originalSegment}</span>
+                              <span className="text-slate-400">→</span>
+                              <span className="text-emerald-700 font-bold font-mono text-[11px]">{err.suggestedSegment}</span>
+                              <span className="text-rose-600 font-bold ml-auto font-mono text-[10px]">-{err.pointsDeducted}</span>
+                            </div>
+                            <p className="text-slate-600 text-[10px] leading-relaxed italic">{err.explanation}</p>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    ) : (
+                      <p className="text-[10px] text-emerald-700 font-medium italic mt-1">Excellent sentence construction! No errors detected.</p>
+                    )}
+
+                    {sq.feedback && (
+                      <div className="text-[11px] bg-slate-50 p-2 rounded-md text-slate-600 leading-normal mt-2 border-l border-slate-200">
+                        <span className="font-semibold text-slate-800 text-[10.5px]">第 {sq.questionIndex} 題點評：</span>
+                        {sq.feedback}
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-[10px] text-emerald-700 font-medium italic mt-1">Excellent sentence construction! No grammatical or spelling errors detected.</p>
-                )}
-                
-                {student.feedback2 && (
-                  <div className="text-[11px] bg-slate-50 p-2 rounded-md text-slate-600 leading-normal mt-2 border-l border-slate-200">
-                    <span className="font-semibold text-slate-800 text-[10.5px]">第二句點評：</span>
-                    {student.feedback2}
-                  </div>
-                )}
-              </div>
+                ));
+              })()}
             </div>
 
             {/* Custom Major issues & Recommended improved model answer */}
