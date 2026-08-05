@@ -137,6 +137,7 @@ export default function BatchGradingDesk({
     return {
       seatNumber: seatNo,
       status: "graded",
+      subQuestionGradings: report.subQuestionGradings,
       ocrSentence1: report.ocrSentence1,
       ocrSentence2: report.ocrSentence2,
       score1: report.score1,
@@ -187,11 +188,11 @@ export default function BatchGradingDesk({
           ...q, 
           status: "graded", 
           progress: "Done", 
-          score: `${result.totalScore?.toFixed(2)} 分`,
+          score: `${result.totalScore?.toFixed(1)} 分`,
           errorMsg: undefined
         } : q)
       );
-      addLog(`✅ 座號 #${seatNumber} 重新評估完畢：${result.totalScore?.toFixed(2)}分`);
+      addLog(`✅ 座號 #${seatNumber} 重新評估完畢：${result.totalScore?.toFixed(1)}分`);
     } catch (err: any) {
       console.error(err);
       onGradingComplete({
@@ -280,10 +281,10 @@ export default function BatchGradingDesk({
                 ...q, 
                 status: "graded", 
                 progress: "Done",
-                score: `${result.totalScore?.toFixed(2)} 分`
+                score: `${result.totalScore?.toFixed(1)} 分`
               } : q)
             );
-            addLog(`✅ 座號 #${item.seatNumber} 批改完成：${result.totalScore?.toFixed(2)}分 (大考 ${result.majorIssues})`);
+            addLog(`✅ 座號 #${item.seatNumber} 批改完成：${result.totalScore?.toFixed(1)}分 (大考 ${result.majorIssues})`);
           } catch (err: any) {
             console.error(err);
             onGradingComplete({
