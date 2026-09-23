@@ -808,6 +808,34 @@ function sanitizeAndRecalculateScores(gradingResult: any): any {
                     s2Text.includes("未作答") ||
                     s2Text === "(空白或無辨識結果)";
 
+  // CEEC-style rule: Chinese characters in an English translation do not
+  // carry English meaning and must be treated as an untranslated target word.
+  // Keep this server-side so it applies consistently to AI, fallback, and
+  // direct-reference grading paths.
+  const chineseRuns = (text: string): string[] =>
+    text.match(/[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uff00-\uffef]+/g) || [];
+  const addChineseLanguageErrors = (text: string, errors: any[], sentenceLabel: string) => {
+    const runs = chineseRuns(text);
+    runs.forEach((run) => {
+      const alreadyFlagged = errors.some((err: any) =>
+        String(err.originalSegment || "").includes(run) ||
+        String(err.explanation || "").includes("直接使用中文字")
+      );
+      if (!alreadyFlagged) {
+        errors.push({
+          originalSegment: run,
+          suggestedSegment: "請以英文表達該詞彙或語意",
+          errorType: "Missing / Chinese character",
+          explanation: `【大考中心評分原則】${sentenceLabel}出現中文字，該字詞不具備英文意義，視為標的詞彙缺漏或錯譯；本處扣 0.5 分，且不以中文字代替英文作答。`,
+          pointsDeducted: 0.5
+        });
+      }
+    });
+  };
+
+  if (!s1IsEmpty) addChineseLanguageErrors(s1Text, res.errors1 || (res.errors1 = []), "第一句");
+  if (!s2IsEmpty) addChineseLanguageErrors(s2Text, res.errors2 || (res.errors2 = []), "第二句");
+
   let baseS1 = s1IsEmpty ? 0.0 : 4.0;
   let baseS2 = s2IsEmpty ? 0.0 : 4.0;
 
@@ -926,6 +954,7 @@ You are an expert English evaluator for the Taiwan GSAT (General Scholastic Abil
 2. **Deduction Mechanism**: Deduct points based on error severity. Stop deducting once a sub-question reaches 0.0. Do not give negative scores.
 3. **No Cumulative Penalties**: The exact same spelling, grammatical, or collocation error repeated within the same sub-question must only be penalized ONCE (mark subsequent occurrences as 0.0).
 4. **Independence**: Grade Sentence 1 and Sentence 2 completely independently.
+5. **Chinese-character rule (CEEC principle)**: Any Chinese, Japanese kanji, or other CJK characters appearing in an English answer do not constitute English meaning. Treat each contiguous CJK segment as a missing/mistranslated target word and deduct 0.5 points. Explain in Traditional Chinese that the target vocabulary must be expressed in English. If the remaining sentence is incomplete or semantically incoherent because of the untranslated segment, the sub-question may receive 0 points.
 
 # Deduction Severity Guide (Crucial)
 To strictly enforce details while maintaining fairness, use TWO tiers of deductions:
