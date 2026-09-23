@@ -37,6 +37,8 @@ export default function BatchGradingDesk({
   lang = "bilingual",
 }: BatchGradingDeskProps) {
   const [activeTab, setActiveTab] = useState<"text" | "simulator">("simulator");
+  const [gradingScope, setGradingScope] = useState<"all" | "selected">("all");
+  const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -68,6 +70,15 @@ export default function BatchGradingDesk({
 
   // Find present students
   const presentStudents = students.filter(s => s.status !== "absent");
+  const targetStudents = gradingScope === "selected"
+    ? presentStudents.filter(s => selectedSeats.includes(s.seatNumber))
+    : presentStudents;
+
+  const toggleSelectedSeat = (seatNumber: number) => {
+    setSelectedSeats(prev => prev.includes(seatNumber)
+      ? prev.filter(seat => seat !== seatNumber)
+      : [...prev, seatNumber]);
+  };
 
   // Keep track of present seats
   const presentSeatNumbers = presentStudents.map(s => s.seatNumber);
@@ -353,7 +364,7 @@ export default function BatchGradingDesk({
   // Tab 2: Combined Text Parsing Act
   const handleLoadDemoTextTemplate = () => {
     let template = "";
-    presentStudents.forEach((student, idx) => {
+    targetStudents.forEach((student, idx) => {
       // Rotate submissions
       const sub = DEMO_STUDENT_SUBMISSIONS[idx % DEMO_STUDENT_SUBMISSIONS.length];
       template += `#${student.seatNumber.toString().padStart(2, "0")}\n${sub.textInput}\n\n`;
@@ -384,7 +395,7 @@ export default function BatchGradingDesk({
     if (parsedMap.size === 0) {
       // Fallback: assume split by blank line and map to present students
       const paragraphs = combinedText.split(/\n\s*\n/);
-      presentStudents.forEach((st, idx) => {
+      targetStudents.forEach((st, idx) => {
         const para = paragraphs[idx];
         if (para && para.trim()) {
           parsedMap.set(st.seatNumber, para.trim());
@@ -392,7 +403,7 @@ export default function BatchGradingDesk({
       });
     }
 
-    const items: QueuedStudent[] = presentStudents
+    const items: QueuedStudent[] = targetStudents
       .filter(s => parsedMap.has(s.seatNumber))
       .map((student, idx) => ({
         id: `text-${student.seatNumber}-${idx}-${Math.random()}`,
@@ -416,6 +427,10 @@ export default function BatchGradingDesk({
       setLocalError("當前班級無任何學生設定。");
       return;
     }
+    if (gradingScope === "selected" && targetStudents.length === 0) {
+      setLocalError("請先在「單一／部分學生」模式勾選至少一位學生，再上傳或分派考卷。");
+      return;
+    }
 
     setIsExtracting(true);
     setLocalError(null);
@@ -424,7 +439,7 @@ export default function BatchGradingDesk({
     const newSimFiles: SimFile[] = [];
 
     // Use presentStudents if there are multiple checked, otherwise default to all class students for sequential mapping
-    const mappingList = presentStudents.length > 1 ? presentStudents : students;
+    const mappingList = targetStudents.length > 0 ? targetStudents : students;
 
     try {
       // Check if it is a single PDF with several pages requested to be mapped page-by-page
@@ -491,7 +506,11 @@ export default function BatchGradingDesk({
   };
 
   const handleGenerateSimBundle = () => {
-    const listToGenerate = presentStudents.length > 1 ? presentStudents : students;
+    const listToGenerate = gradingScope === "selected" ? targetStudents : (targetStudents.length > 0 ? targetStudents : students);
+    if (listToGenerate.length === 0) {
+      setLocalError("請先在「單一／部分學生」模式勾選至少一位學生。");
+      return;
+    }
     const newSimFilesToGen: SimFile[] = listToGenerate.map((student, idx) => {
       // Resolve realistic mock standard responses
       const foundDemo = DEMO_STUDENT_SUBMISSIONS.find(d => d.seatNumber === student.seatNumber || d.seatNumber === ((student.seatNumber - 1) % 5) + 1);
@@ -522,7 +541,9 @@ export default function BatchGradingDesk({
       return;
     }
 
-    const items: QueuedStudent[] = simFiles.map((f, idx) => {
+    const items: QueuedStudent[] = simFiles
+      .filter(f => gradingScope === "all" || selectedSeats.includes(f.seatNumber))
+      .map((f, idx) => {
       // Find matches in DEMO_STUDENT_SUBMISSIONS, fallback to generic
       const foundDemo = DEMO_STUDENT_SUBMISSIONS.find(d => d.seatNumber === f.seatNumber || d.seatNumber === ((f.seatNumber - 1) % 5) + 1);
       const textInput = foundDemo 
@@ -543,6 +564,10 @@ export default function BatchGradingDesk({
       };
     });
 
+    if (items.length === 0) {
+      setLocalError("目前的單一/部分學生修改模式沒有對應到已選取的考卷，請重新選擇學生或調整座號。");
+      return;
+    }
     runBatchPipeline(items);
   };
 
@@ -599,6 +624,34 @@ export default function BatchGradingDesk({
             批次貼上打字 (Text)
           </button>
         </div>
+      </div>
+
+      {/* Late-submission / partial regrading scope */}
+      <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 space-y-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <div className="text-[11px] font-black text-amber-900">批改範圍／遲交補改模式</div>
+            <div className="text-[10px] text-amber-800/80 mt-0.5">可只重跑單一學生或部分學生，不會覆蓋其他學生的成績。</div>
+          </div>
+          <div className="flex gap-1.5">
+            <button type="button" onClick={() => setGradingScope("all")} className={`px-2.5 py-1 rounded text-[10px] font-bold border ${gradingScope === "all" ? "bg-amber-700 text-white border-amber-700" : "bg-white text-amber-800 border-amber-200"}`}>全班批改</button>
+            <button type="button" onClick={() => setGradingScope("selected")} className={`px-2.5 py-1 rounded text-[10px] font-bold border ${gradingScope === "selected" ? "bg-amber-700 text-white border-amber-700" : "bg-white text-amber-800 border-amber-200"}`}>單一／部分學生</button>
+          </div>
+        </div>
+        {gradingScope === "selected" && (
+          <div className="flex flex-wrap gap-x-3 gap-y-1.5 pt-1 border-t border-amber-200/80">
+            {presentStudents.map(student => (
+              <label key={student.seatNumber} className="flex items-center gap-1 text-[10px] text-amber-950 cursor-pointer">
+                <input type="checkbox" checked={selectedSeats.includes(student.seatNumber)} onChange={() => toggleSelectedSeat(student.seatNumber)} className="accent-amber-700" />
+                <span>#{student.seatNumber.toString().padStart(2, "0")}</span>
+                <span className="text-amber-700/70">{student.status === "graded" ? "已批改" : student.status === "failed" ? "失敗" : "待批改"}</span>
+              </label>
+            ))}
+            <button type="button" onClick={() => setSelectedSeats(presentStudents.map(s => s.seatNumber))} className="text-[10px] underline text-amber-800 font-bold">全選出席學生</button>
+            <button type="button" onClick={() => setSelectedSeats([])} className="text-[10px] underline text-amber-800">清除選取</button>
+          </div>
+        )}
+        {gradingScope === "selected" && targetStudents.length === 0 && <div className="text-[10px] text-rose-700 font-semibold">請至少選取一位學生後再啟動批改。</div>}
       </div>
 
       {localError && (

@@ -142,7 +142,8 @@ export default function PromptCanvas({ onAnalysisGenerated, currentAnalysis, lan
           referenceTranslations2: s2Ref,
           overallFulfillmentKeys: [
             `【${examMode === "exam" ? "大考模式 (固定2題組)" : `練習模式 (自訂${questions.length}題)`}】：每題獨立占 4.0 分，總滿分為 ${(questions.length * 4.0).toFixed(1)} 分。`,
-            "【直接提供參考答案 (免 Token)】：系統直接使用您設定的標準解答進行校對批改，無需消耗 API Token。"
+            "【直接提供參考答案 (免 Token)】：系統直接使用您設定的標準解答進行校對批改，無需消耗 API Token。",
+            "【大考中心原則】：英文翻譯中若出現中文字，該字詞不具備英文意義，視為標的詞彙缺漏或錯譯，每一處扣 0.5 分；若造成整句語意不通順或殘缺，該子題可能失去墨水分。"
           ]
         };
 
@@ -556,6 +557,7 @@ export default function PromptCanvas({ onAnalysisGenerated, currentAnalysis, lan
                   {currentAnalysis.overallFulfillmentKeys.map((k, idx) => (
                     <li key={idx}>{k}</li>
                   ))}
+                  <li>【大考中心原則】英文翻譯中若出現中文字，該字詞不具備英文意義，視為標的詞彙缺漏或錯譯，每一處扣 0.5 分；若造成整句語意不通順或殘缺，該子題可能失去墨水分。</li>
                 </ul>
               </div>
             )}
